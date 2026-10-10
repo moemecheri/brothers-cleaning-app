@@ -736,7 +736,7 @@ function doNewPass(e){
 var recovering = false, sessionUser = '';
 function startSession(user, force){
   if (!user) return;
-  if (!force && sessionUser === user.id && PROFILE) return;
+  if (!force && sessionUser === user.id) return;
   sessionUser = user.id; USER = user;
   q(SB.from('profiles').select('*').eq('id', user.id).maybeSingle()).then(function(p){
     PROFILE = p;
@@ -761,7 +761,7 @@ function startSession(user, force){
       if (open && findJob(open) && findJob(open).status !== 'done') openJob(open);
     });
   }).catch(function(e){
-    showOnly('authScreen'); showAuth('signin'); authMsg(errText(e), true);
+    sessionUser = ''; showOnly('authScreen'); showAuth('signin'); authMsg(errText(e), true);
   });
 }
 function endSession(){
@@ -801,7 +801,7 @@ function jobState(j){
   if (j.status === 'done') return {cls:'good', text:'Done'};
   if (j.status === 'in_progress') return {cls:'open', text:'In progress'};
   if (j.job_date < todayISO()) return {cls:'bad', text:'Not done yet'};
-  return {cls:'', text: j.job_date === todayISO() ? 'Today' : 'Scheduled'};
+  return {cls:'', text:'Scheduled'};
 }
 function jobCard(j, admin){
   var st = jobState(j), t = photoTotals(j);
@@ -954,7 +954,7 @@ function renderJobHead(){
       '<div class="progress" aria-hidden="true"><div style="width:' + (t.rooms ? Math.round(t.full / t.rooms * 100) : 100) + '%"></div></div>' +
       '<div class="actions"><button type="button" class="btn primary" id="finishJobBtn">Finish job</button></div>';
   } else {
-    html += '<div class="alert good">Finished ' + esc(niceDate(String(j.finished_at || '').slice(0, 10)).replace(/^(Today|Tomorrow)$/, function(w){ return w.toLowerCase(); })) + ' at ' + esc(niceTime(j.finished_at)) + (j.finished_by ? ' by ' + esc(personName(j.finished_by)) : '') + '. ' + t.shots + ' photos.</div>';
+    html += '<div class="alert good">Finished ' + esc(niceDate(j.finished_at ? isoOf(new Date(j.finished_at)) : '').replace(/^(Today|Tomorrow)$/, function(w){ return w.toLowerCase(); })) + ' at ' + esc(niceTime(j.finished_at)) + (j.finished_by ? ' by ' + esc(personName(j.finished_by)) : '') + '. ' + t.shots + ' photos.</div>';
   }
   html += '<p class="status-msg" id="jobMsg" role="status"></p>';
   var prev = $('#jobMsg') ? {t:$('#jobMsg').textContent, c:$('#jobMsg').style.color} : null;
