@@ -50,7 +50,7 @@ var HSIZE = {
   s3: {label:'3,000+ sq ft',      adj:65,  h:1.0}
 };
 
-var DEFAULT_Q = {kind:'office', client:'', area:'', otype:'office', sqft:1200, wash:1, kitchen:true, ofreq:'weekly', firstDeep:true,
+var DEFAULT_Q = {kind:'office', client:'', area:'', contact:'', addr:'', cemail:'', otype:'office', sqft:1200, wash:1, kitchen:true, ofreq:'weekly', firstDeep:true,
   bed:3, full:2, half:0, hsize:'s1', htype:'standard', hfreq:'biweekly', oven:false, fridge:false, cabinets:false, baseboards:false,
   basement:false, pets:false, windows:0, stairs:1, disc:10, hst:false, leadId:''};
 var Q = Object.assign({}, DEFAULT_Q, lsGet('bc-quote', {}));
@@ -113,14 +113,14 @@ var checkIds = ['kitchen','firstDeep','oven','fridge','cabinets','baseboards','b
 var radioNames = ['ofreq','htype','hfreq','disc'];
 
 function fillForm(){
-  $('#client').value = Q.client; $('#area').value = Q.area; $('#otype').value = Q.otype; $('#hsize').value = Q.hsize;
+  $('#client').value = Q.client; $('#area').value = Q.area; $('#q-contact').value = Q.contact || ''; $('#q-addr').value = Q.addr || ''; $('#q-email').value = Q.cemail || ''; $('#otype').value = Q.otype; $('#hsize').value = Q.hsize;
   numIds.forEach(function(id){ $('#' + id).value = Q[id]; });
   checkIds.forEach(function(id){ $('#' + id).checked = !!Q[id]; });
   radioNames.forEach(function(n){ var el = $('input[name="' + n + '"][value="' + Q[n] + '"]'); if (el) el.checked = true; });
 }
 
 function readForm(){
-  Q.client = $('#client').value.trim(); Q.area = $('#area').value.trim(); Q.otype = $('#otype').value; Q.hsize = $('#hsize').value;
+  Q.client = $('#client').value.trim(); Q.area = $('#area').value.trim(); Q.contact = $('#q-contact').value.trim(); Q.addr = $('#q-addr').value.trim(); Q.cemail = $('#q-email').value.trim(); Q.otype = $('#otype').value; Q.hsize = $('#hsize').value;
   numIds.forEach(function(id){ var v = parseInt($('#' + id).value, 10); Q[id] = isNaN(v) ? 0 : v; });
   checkIds.forEach(function(id){ Q[id] = $('#' + id).checked; });
   radioNames.forEach(function(n){ var el = $('input[name="' + n + '"]:checked'); if (el) Q[n] = n === 'disc' ? +el.value : el.value; });
@@ -177,11 +177,12 @@ function renderResult(){
   } else if (Q.kind === 'office' && Q.otype === 'medical'){
     html += '<div class="alert warn">Clinics need extra care: never touch sharps bins or biohazard bags. Ask what disinfectant they want you to use.</div>';
   }
-  html += '<div class="actions"><button type="button" class="btn primary" id="copyQuote">Copy quote for client</button><button type="button" class="btn dark" id="saveLead">' + (linkedLead() ? 'Update this lead' : 'Save to leads') + '</button><button type="button" class="btn ghost" id="toSteps">Make a job from this →</button></div>' +
+  html += '<div class="actions"><button type="button" class="btn primary" id="pdfQuote">Quote for client (PDF)</button><button type="button" class="btn" id="docxQuote">Word version</button><button type="button" class="btn dark" id="saveLead">' + (linkedLead() ? 'Update this lead' : 'Save to leads') + '</button><button type="button" class="btn ghost" id="toSteps">Make a job from this →</button></div>' +
           '<div class="status-msg" id="quoteMsg" role="status"></div>' +
           '<textarea id="quoteText" class="copybox" readonly hidden aria-label="Quote text"></textarea>';
   $('#result').innerHTML = html;
-  $('#copyQuote').addEventListener('click', function(){ copyText(quoteMessage(), $('#quoteText'), $('#quoteMsg'), 'Copied. Paste it into a text or email.'); });
+  $('#pdfQuote').addEventListener('click', function(){ quoteFile('pdf'); });
+  $('#docxQuote').addEventListener('click', function(){ quoteFile('docx'); });
   $('#saveLead').addEventListener('click', saveQuoteAsLead);
   $('#toSteps').addEventListener('click', function(){ openNewJob(); });
   $('#stripPrice').textContent = money(you) + (recurring ? ' / visit' : '');
@@ -564,6 +565,7 @@ function loadSettings(){
     (rows || []).forEach(function(r){
       if (r.key === 'setup') setupDone = (r.value && r.value.done) || {};
       if (r.key === 'me') ME = Object.assign({}, ME_DEFAULT, r.value || {});
+      if (r.key === 'quote') QUOTE_TERMS = (r.value && r.value.terms) || '';
     });
     fillMe(); renderSetup(); renderLeads();
   });
@@ -572,10 +574,16 @@ function setSetup(key, val){
   setupDone = Object.assign({}, setupDone); setupDone[key] = val;
   renderSetup(); saveSetting('setup', {done:setupDone});
 }
-function fillMe(){ $('#me-name').value = ME.name || ''; $('#me-phone').value = ME.phone || ''; $('#me-email').value = ME.email || ''; $('#me-address').value = ME.address || ''; var w = $('#detailsWarn'); if (w) w.hidden = !!ME.address; }
+function fillMe(){ var tt = $('#me-terms'); if (tt) tt.value = QUOTE_TERMS || QUOTE_TERMS_DEFAULT; $('#me-name').value = ME.name || ''; $('#me-phone').value = ME.phone || ''; $('#me-email').value = ME.email || ''; $('#me-address').value = ME.address || ''; var w = $('#detailsWarn'); if (w) w.hidden = !!ME.address; }
 var meTimer = 0;
+var termsTimer = 0;
 function readMe(e){
   if (!/^me-/.test(e.target.id || '')) return;
+  if (e.target.id === 'me-terms'){
+    var v = e.target.value.trim(); QUOTE_TERMS = v === QUOTE_TERMS_DEFAULT.trim() ? '' : v;
+    clearTimeout(termsTimer); termsTimer = setTimeout(function(){ saveSetting('quote', {terms:QUOTE_TERMS}); }, 700);
+    return;
+  }
   ME = {name: $('#me-name').value.trim(), phone: $('#me-phone').value.trim(), email: $('#me-email').value.trim(), address: $('#me-address').value.trim()};
   var w = $('#detailsWarn'); if (w) w.hidden = !!ME.address;
   clearTimeout(meTimer); meTimer = setTimeout(function(){ saveSetting('me', ME); }, 700);
@@ -1204,6 +1212,443 @@ function updatePerson(id, patch){
 }
 
 /* =========================================================
+   CLIENT QUOTE DOCUMENTS (PDF + Word)
+   Built in the browser from the Quote tab. Only client-facing numbers go in:
+   no going rate, no discount, no hourly earnings.
+   ========================================================= */
+var QUOTE_TERMS_DEFAULT = [
+  'This quote is valid for 30 days from the date above.',
+  'Prices are based on the details in this quote. If the space or the work turns out to be different, we will agree on any change with you before we start.',
+  'We bring all cleaning products and equipment. For offices, you supply paper towel, toilet paper and hand soap.',
+  'Regular service is billed monthly. Payment is due within 15 days of the invoice, by e-transfer or cheque. One-time cleans are paid when the job is done.',
+  'No long-term contract. Either of us can stop the service with 30 days notice.'
+].join('\n');
+var QUOTE_TERMS = '';
+function quoteTerms(){ return String(QUOTE_TERMS || QUOTE_TERMS_DEFAULT).split('\n').map(function(s){ return s.trim(); }).filter(Boolean); }
+
+var scriptLoads = {};
+function loadScript(src){
+  if (!scriptLoads[src]) scriptLoads[src] = new Promise(function(resolve, reject){
+    var s = document.createElement('script'); s.src = src; s.async = true;
+    s.onload = resolve; s.onerror = function(){ delete scriptLoads[src]; reject(new Error('Could not load ' + src)); };
+    document.head.appendChild(s);
+  });
+  return scriptLoads[src];
+}
+function saveBlob(blob, name){
+  var url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; a.rel = 'noopener'; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 8000);
+}
+function cad(n){ return '$' + Number(n).toLocaleString('en-CA', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function quoteIncludes(){
+  var inc;
+  if (Q.kind === 'office'){
+    inc = ['Empty all garbage and recycling bins and put in new liners', 'Dust and wipe desks, ledges and other surfaces', 'Disinfect door handles, light switches and other high-touch spots',
+      'Clean and disinfect washrooms: toilets, sinks, mirrors and floors', 'Refill paper towel, toilet paper and soap from your supply'];
+    if (Q.kitchen) inc.push('Kitchen / break room: counters, sink, tables and the outside of appliances');
+    inc.push('Vacuum carpets and mop hard floors');
+    var r = calc();
+    if (r.first || Q.ofreq === 'once') inc.push('Deep clean' + (Q.ofreq === 'once' ? '' : ' (first visit)') + ' adds: baseboards, door frames, vents, inside the microwave and marks on walls');
+  } else {
+    inc = ['Kitchen: counters, stovetop, sink, outside of appliances, microwave inside and out', 'Bathrooms: shower and tub, toilet, sink, mirrors and floors',
+      'Bedrooms and living areas: dusting, surfaces and mirrors', 'Vacuum and mop all floors, and take out the garbage'];
+    if (Q.htype === 'deep') inc.push('Deep clean adds: baseboards, door frames, light switches, vents and window sills');
+    if (Q.htype === 'move') inc.push('Move-out clean adds: inside all cabinets, drawers, closets, fridge and oven, and marks on walls');
+  }
+  return inc;
+}
+function houseExtras(){
+  var ex = [];
+  if (Q.oven) ex.push('inside the oven'); if (Q.fridge) ex.push('inside the fridge');
+  if (Q.cabinets && Q.htype !== 'move') ex.push('inside the cabinets');
+  if (Q.baseboards && Q.htype === 'standard') ex.push('baseboards');
+  if (Q.windows) ex.push(plural(+Q.windows, 'window') + ' (inside)');
+  return ex;
+}
+
+function quoteDoc(){
+  var r = calc(), you = yourPrice(r.mid), recurring = r.visits > 0, month = recurring ? r5(you * r.visits) : 0;
+  var firstYou = r.first ? yourPrice(r.first.mid) : 0, hst = !!Q.hst, T = 1.13;
+  var now = new Date(), valid = new Date(now.getTime() + 30 * 864e5);
+  var p2 = function(n){ return String(n).padStart(2, '0'); };
+  var number = 'Q-' + String(now.getFullYear()).slice(2) + p2(now.getMonth() + 1) + p2(now.getDate()) + '-' + p2(now.getHours()) + p2(now.getMinutes());
+  var longDate = function(d){ return d.toLocaleDateString('en-CA', {year:'numeric', month:'long', day:'numeric'}); };
+  var visitsTxt = recurring ? 'about ' + (Math.round(r.visits * 10) / 10) + (r.visits === 1 ? ' visit' : ' visits') + ' a month' : '';
+  var rows = [], place, schedule, note, title;
+  function row(desc, sub, when, amount, unit){ rows.push({desc:desc, sub:sub || '', when:when, price:cad(amount) + (unit || ''), priceHst:cad(amount * T) + (unit || '')}); }
+  if (Q.kind === 'office'){
+    var ty = OTYPE[Q.otype] || OTYPE.office;
+    title = (Q.otype === 'office' ? 'Office' : ty.label) + ' cleaning';
+    place = ty.label + ', about ' + Number(Q.sqft).toLocaleString('en-CA') + ' sq ft, ' + plural(+Q.wash || 0, 'washroom') + (Q.kitchen ? ', kitchen / break room' : '');
+    schedule = recurring ? r.fr.label + ' (' + visitsTxt + '), after hours or at a time that suits you' : 'One visit, at a time that suits you';
+    if (recurring){
+      row('Regular cleaning visit', 'Everything listed under "What\'s included"', r.fr.label, you, ' / visit');
+      if (r.first) row('First visit: full deep clean', 'One time, to start fresh', 'Once', firstYou, '');
+    } else {
+      row('One-time deep clean', 'Everything listed under "What\'s included"', 'Once', you, '');
+    }
+    note = 'We can clean after hours, in the evening or on weekends, so your team is never disturbed.';
+  } else {
+    var ht = HTYPE[Q.htype] || HTYPE.standard, sz = HSIZE[Q.hsize] || HSIZE.s1, ex = houseExtras();
+    title = 'Home cleaning';
+    place = 'Home: ' + plural(+Q.bed || 0, 'bedroom') + ', ' + plural(+Q.full || 0, 'bathroom') + (Q.half ? ', ' + plural(+Q.half, 'half bath', 'half baths') : '') + ', ' + sz.label + (Q.basement ? ', finished basement' : '');
+    schedule = recurring ? r.fr.label + ' (' + visitsTxt + ')' : 'One visit, at a time that suits you';
+    var exTxt = ex.length ? 'Includes: ' + ex.join(', ') : '';
+    if (recurring){
+      row(r.first.label, 'One time, to start fresh' + (exTxt ? '. ' + exTxt : ''), 'Once', firstYou, '');
+      row('Regular cleaning visit', 'Everything listed under "What\'s included"', r.fr.label, you, ' / visit');
+    } else {
+      row(ht.label + ' clean', exTxt || 'Everything listed under "What\'s included"', 'Once', you, '');
+    }
+    note = 'We bring all our own supplies and equipment.';
+  }
+  var totals = [];
+  if (recurring){
+    totals.push({label:'Estimated monthly cost', sub:visitsTxt + (r.first ? ', first visit not included' : ''), value:cad(month)});
+    if (hst){ totals.push({label:'HST (13%)', value:cad(month * 0.13)}); totals.push({label:'Monthly total with HST', value:cad(month * T), strong:true}); }
+    else totals[0].strong = true;
+  } else {
+    if (hst){ totals.push({label:'Subtotal', value:cad(you)}); totals.push({label:'HST (13%)', value:cad(you * 0.13)}); totals.push({label:'Total', value:cad(you * T), strong:true}); }
+    else totals.push({label:'Total', value:cad(you), strong:true});
+  }
+  var client = (Q.client || '').trim();
+  var safe = function(s){ return String(s || '').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 60); };
+  return {
+    number:number, date:longDate(now), valid:longDate(valid), title:title, place:place, schedule:schedule, note:note, hst:hst,
+    rows:rows, totals:totals, includes:quoteIncludes(), terms:quoteTerms(),
+    priceNote: 'All prices are in Canadian dollars.' + (hst ? ' HST (13%) is added as shown.' : ' No HST is charged.'),
+    biz:{name:'Brothers Cleaning Solution', person:ME.name || '', address:ME.address || '', phone:ME.phone || '', email:ME.email || ''},
+    client:{name:client || 'Client', contact:(Q.contact || '').trim(), address:(Q.addr || '').trim() || (Q.area || '').trim(), email:(Q.cemail || '').trim()},
+    file:'Quote ' + number + (client ? ' - ' + safe(client) : '')
+  };
+}
+
+/* ---------------- PDF ---------------- */
+function makeQuotePDF(d){
+  var doc = new window.jspdf.jsPDF({unit:'pt', format:'letter'});
+  var W = 612, H = 792, M = 48, CW = W - 2 * M, y;
+  var NAVY = [19, 32, 43], YEL = [243, 196, 49], INK = [19, 32, 43], MUTED = [86, 103, 117], LINE = [211, 220, 227], SOFT = [244, 247, 249];
+  function fill(c){ doc.setFillColor(c[0], c[1], c[2]); }
+  function color(c){ doc.setTextColor(c[0], c[1], c[2]); }
+  function font(style, size){ doc.setFont('helvetica', style); doc.setFontSize(size); }
+  function ensure(h){ if (y + h > H - 64){ doc.addPage(); y = M; } }
+  function heading(t){
+    ensure(40); y += 10;
+    font('bold', 10.5); color(NAVY); doc.text(t.toUpperCase(), M, y, {charSpace:0.6});
+    doc.setDrawColor(YEL[0], YEL[1], YEL[2]); doc.setLineWidth(2); doc.line(M, y + 6, M + 34, y + 6);
+    y += 22;
+  }
+  function para(t, size, c, indent){
+    font('normal', size || 10); color(c || INK);
+    var lines = doc.splitTextToSize(t, CW - (indent || 0));
+    lines.forEach(function(l){ ensure(14); doc.text(l, M + (indent || 0), y); y += (size || 10) * 1.35; });
+  }
+
+  /* header band */
+  fill(NAVY); doc.rect(0, 0, W, 100, 'F');
+  fill(YEL); doc.roundedRect(M, 28, 44, 44, 7, 7, 'F');
+  font('bold', 18); color(NAVY); doc.text('BC', M + 22, 56, {align:'center'});
+  font('bold', 17); doc.setTextColor(255, 255, 255); doc.text('Brothers Cleaning Solution', M + 58, 46);
+  font('normal', 9.5); doc.setTextColor(198, 209, 218); doc.text('Office, clinic and home cleaning · Ottawa & Orléans', M + 58, 62);
+  font('bold', 26); color(YEL); doc.text('QUOTE', W - M, 48, {align:'right'});
+  font('normal', 9); doc.setTextColor(255, 255, 255);
+  doc.text('No. ' + d.number, W - M, 64, {align:'right'});
+  doc.text('Date: ' + d.date, W - M, 76, {align:'right'});
+  doc.text('Valid until: ' + d.valid, W - M, 88, {align:'right'});
+
+  /* from / for */
+  y = 132;
+  var colW = CW / 2 - 12, x2 = M + CW / 2 + 12;
+  function block(x, label, lines){
+    var yy = y;
+    font('bold', 8); color(MUTED); doc.text(label, x, yy, {charSpace:0.8}); yy += 15;
+    lines.forEach(function(l, i){
+      if (!l) return;
+      font(i === 0 ? 'bold' : 'normal', i === 0 ? 11 : 9.5); color(INK);
+      doc.splitTextToSize(l, colW).forEach(function(t){ doc.text(t, x, yy); yy += i === 0 ? 15 : 13; });
+    });
+    return yy;
+  }
+  var yA = block(M, 'FROM', [d.biz.name, d.biz.person ? 'Contact: ' + d.biz.person : '', d.biz.address, d.biz.phone, d.biz.email]);
+  var yB = block(x2, 'PREPARED FOR', [d.client.name, d.client.contact ? 'Attention: ' + d.client.contact : '', d.client.address, d.client.email]);
+  y = Math.max(yA, yB) + 8;
+  doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.setLineWidth(0.7); doc.line(M, y, W - M, y); y += 10;
+
+  /* the job */
+  heading('The job: ' + d.title);
+  para(d.place, 10); para('Schedule: ' + d.schedule, 10);
+
+  /* pricing */
+  heading('Price');
+  var head = d.hst ? [['Service', 'How often', 'Price', 'With HST']] : [['Service', 'How often', 'Price']];
+  var body = d.rows.map(function(r){ var cells = [r.desc + (r.sub ? '\n' + r.sub : ''), r.when, r.price]; if (d.hst) cells.push(r.priceHst); return cells; });
+  var col0 = CW - (d.hst ? 258 : 220), inner = col0 - 16;
+  var colStyles = d.hst ? {0:{cellWidth:col0}, 1:{cellWidth:86}, 2:{cellWidth:86, halign:'right'}, 3:{cellWidth:86, halign:'right'}}
+                        : {0:{cellWidth:col0}, 1:{cellWidth:110}, 2:{cellWidth:110, halign:'right'}};
+  doc.autoTable({
+    startY: y - 4, margin:{left:M, right:M}, head:head, body:body, theme:'grid',
+    styles:{font:'helvetica', fontSize:9.5, cellPadding:{top:7, bottom:7, left:8, right:8}, textColor:INK, lineColor:LINE, lineWidth:0.6, valign:'middle'},
+    headStyles:{fillColor:NAVY, textColor:[255, 255, 255], fontStyle:'bold', lineColor:NAVY},
+    alternateRowStyles:{fillColor:SOFT}, columnStyles:colStyles,
+    didParseCell:function(data){
+      if (data.section === 'head' && data.column.index >= 2) data.cell.styles.halign = 'right';
+      if (data.section === 'body' && data.column.index === 0){
+        var r = d.rows[data.row.index];
+        font('bold', 9.5); var a = doc.splitTextToSize(r.desc, inner);
+        font('normal', 8.5); var b = r.sub ? doc.splitTextToSize(r.sub, inner) : [];
+        data.cell.bc = {a:a, b:b, h:a.length * 12 + b.length * 11 + (b.length ? 2 : 0)};
+        data.cell.styles.minCellHeight = data.cell.bc.h + 16;
+      }
+    },
+    willDrawCell:function(data){ if (data.section === 'body' && data.cell.bc) data.cell.text = []; },
+    didDrawCell:function(data){
+      var L = data.cell.bc; if (data.section !== 'body' || !L) return;
+      var yy = data.cell.y + (data.cell.height - L.h) / 2 + 9;
+      font('bold', 9.5); color(INK); L.a.forEach(function(t){ doc.text(t, data.cell.x + 8, yy); yy += 12; });
+      if (L.b.length){ yy += 2; font('normal', 8.5); color(MUTED); L.b.forEach(function(t){ doc.text(t, data.cell.x + 8, yy); yy += 11; }); }
+    }
+  });
+  y = doc.lastAutoTable.finalY + 14;
+
+  /* totals box (right) + price note (left) */
+  var boxW = 250, bx = W - M - boxW, rowH = 21, boxH = d.totals.length * rowH + 12;
+  ensure(boxH + 10);
+  fill(SOFT); doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.roundedRect(bx, y, boxW, boxH, 5, 5, 'FD');
+  var ty2 = y + 19;
+  d.totals.forEach(function(t, i){
+    if (t.strong && i > 0){ doc.setDrawColor(NAVY[0], NAVY[1], NAVY[2]); doc.setLineWidth(0.8); doc.line(bx + 10, ty2 - 13, bx + boxW - 10, ty2 - 13); }
+    font(t.strong ? 'bold' : 'normal', t.strong ? 11 : 9.5); color(INK);
+    doc.text(t.label, bx + 10, ty2);
+    doc.text(t.value, bx + boxW - 10, ty2, {align:'right'});
+    if (t.sub){ font('normal', 7.5); color(MUTED); doc.text('(' + t.sub + ')', bx + 10, ty2 + 10); }
+    ty2 += rowH;
+  });
+  font('normal', 8.5); color(MUTED);
+  doc.splitTextToSize(d.priceNote, CW - boxW - 24).forEach(function(l, i){ doc.text(l, M, y + 14 + i * 12); });
+  y += boxH + 8;
+
+  /* included */
+  heading("What's included");
+  d.includes.forEach(function(t){
+    font('normal', 9.5); color(INK);
+    var lines = doc.splitTextToSize(t, CW - 16);
+    ensure(lines.length * 13 + 4);
+    fill(YEL); doc.circle(M + 4, y - 3.2, 2.2, 'F');
+    lines.forEach(function(l){ doc.text(l, M + 14, y); y += 13; });
+    y += 2;
+  });
+  y += 4; font('italic', 9.5); color(MUTED);
+  doc.splitTextToSize(d.note, CW).forEach(function(l){ ensure(14); doc.text(l, M, y); y += 13; });
+
+  /* terms + acceptance: one block, never split across pages */
+  font('normal', 9);
+  var termsH = 32 + d.terms.reduce(function(s, t){ return s + doc.splitTextToSize(t, CW - 16).length * 12 + 3; }, 0);
+  var accH = 190;
+  if (y + termsH + accH > H - 64 && termsH + accH < H - 64 - M){ doc.addPage(); y = M; }
+  heading('Terms');
+  d.terms.forEach(function(t, i){
+    font('normal', 9); color(INK);
+    var lines = doc.splitTextToSize(t, CW - 16);
+    ensure(lines.length * 12 + 4);
+    font('bold', 9); color(NAVY); doc.text((i + 1) + '.', M, y);
+    font('normal', 9); color(INK);
+    lines.forEach(function(l){ doc.text(l, M + 16, y); y += 12; });
+    y += 3;
+  });
+
+  /* acceptance */
+  ensure(accH - 10);
+  heading('Acceptance');
+  para('To accept this quote, sign below and send it back to us, or simply reply to our email.', 9.5, INK);
+  y += 18;
+  function sig(x, title, name){
+    var yy = y;
+    font('bold', 9); color(MUTED); doc.text(title, x, yy, {charSpace:0.5}); yy += 26;
+    doc.setDrawColor(MUTED[0], MUTED[1], MUTED[2]); doc.setLineWidth(0.6);
+    [['Name', name], ['Signature', ''], ['Date', '']].forEach(function(f){
+      font('normal', 9); color(MUTED); doc.text(f[0], x, yy);
+      doc.line(x + 52, yy + 2, x + colW, yy + 2);
+      if (f[1]){ font('normal', 10); color(INK); doc.text(f[1], x + 56, yy - 2); }
+      yy += 28;
+    });
+  }
+  sig(M, 'CLIENT', d.client.contact || '');
+  sig(x2, 'BROTHERS CLEANING SOLUTION', d.biz.person || '');
+
+  /* footer on every page */
+  var n = doc.getNumberOfPages();
+  for (var p = 1; p <= n; p++){
+    doc.setPage(p);
+    doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.setLineWidth(0.6); doc.line(M, H - 40, W - M, H - 40);
+    font('normal', 8); color(MUTED);
+    doc.text([d.biz.name, d.biz.phone, d.biz.email].filter(Boolean).join('  ·  '), M, H - 26);
+    doc.text('Quote ' + d.number + '  ·  Page ' + p + ' of ' + n, W - M, H - 26, {align:'right'});
+  }
+  return doc.output('blob');
+}
+
+/* ---------------- Word ---------------- */
+function makeQuoteDOCX(d){
+  var D = window.docx;
+  var NAVY = '13202B', YEL = 'F3C431', MUTED = '566775', LINE = 'D3DCE3', SOFT = 'F4F7F9';
+  var CW = 10080;                                   /* Letter width 12240 - 2 x 1080 margins */
+  var none = {style:D.BorderStyle.NONE, size:0, color:'FFFFFF'};
+  var noBorders = {top:none, bottom:none, left:none, right:none, insideHorizontal:none, insideVertical:none};
+  var thin = {style:D.BorderStyle.SINGLE, size:4, color:LINE};
+  function run(text, o){ o = o || {}; return new D.TextRun({text:text, bold:!!o.bold, italics:!!o.italics, size:Math.round((o.size || 10) * 2), color:o.color || NAVY, font:'Arial', characterSpacing:o.spacing,
+    shading:o.shade ? {type:D.ShadingType.CLEAR, color:'auto', fill:o.shade} : undefined}); }
+  function p(children, o){ o = o || {}; return new D.Paragraph({children:Array.isArray(children) ? children : [children], alignment:o.align, spacing:{before:o.before || 0, after:o.after === undefined ? 80 : o.after}, numbering:o.numbering, border:o.border, keepNext:o.keepNext, keepLines:o.keepLines, style:o.style}); }
+  function cell(children, width, o){
+    o = o || {};
+    return new D.TableCell({children:children, width:{size:width, type:D.WidthType.DXA}, shading:o.fill ? {type:D.ShadingType.CLEAR, color:'auto', fill:o.fill} : undefined,
+      margins:{top:o.pad || 100, bottom:o.pad || 100, left:140, right:140}, verticalAlign:o.valign || D.VerticalAlign.CENTER, borders:o.borders});
+  }
+  function heading(t){ return p([run(t.toUpperCase(), {bold:true, size:10.5, spacing:12})], {before:260, after:120, keepNext:true, border:{bottom:{style:D.BorderStyle.SINGLE, size:12, color:YEL, space:4}}}); }
+
+  /* header band: one navy cell, the QUOTE details sit on a right tab stop (no seams) */
+  var HW = CW - 480, tabs = [{type:D.TabStopType.RIGHT, position:HW}];
+  function hp(left, right, o){
+    o = o || {};
+    return new D.Paragraph({tabStops:tabs, spacing:{before:0, after:o.after || 0}, children:left.concat([new D.TextRun({children:[new D.Tab()]})], right)});
+  }
+  var headerTable = new D.Table({
+    width:{size:CW, type:D.WidthType.DXA}, columnWidths:[CW], borders:noBorders,
+    rows:[new D.TableRow({cantSplit:true, children:[cell([
+      hp([run(' BC ', {bold:true, size:15, color:NAVY, shade:YEL}), run('  Brothers Cleaning Solution', {bold:true, size:16, color:'FFFFFF'})], [run('QUOTE', {bold:true, size:24, color:YEL})], {after:20}),
+      hp([run('Office, clinic and home cleaning · Ottawa & Orléans', {size:9, color:'C6D1DA'})], [run('No. ' + d.number, {size:9, color:'FFFFFF'})]),
+      hp([], [run('Date: ' + d.date, {size:9, color:'FFFFFF'})]),
+      hp([], [run('Valid until: ' + d.valid, {size:9, color:'FFFFFF'})])
+    ], CW, {fill:NAVY, pad:260})]})]
+  });
+  function partyCell(label, lines){
+    var ch = [p(run(label, {bold:true, size:8, color:MUTED, spacing:16}), {after:60})];
+    lines.filter(Boolean).forEach(function(l, i){ ch.push(p(run(l, {bold:i === 0, size:i === 0 ? 11 : 9.5}), {after:20})); });
+    return cell(ch, CW / 2, {valign:D.VerticalAlign.TOP, pad:60});
+  }
+  var parties = new D.Table({
+    width:{size:CW, type:D.WidthType.DXA}, columnWidths:[CW / 2, CW / 2], borders:noBorders,
+    rows:[new D.TableRow({children:[
+      partyCell('FROM', [d.biz.name, d.biz.person ? 'Contact: ' + d.biz.person : '', d.biz.address, d.biz.phone, d.biz.email]),
+      partyCell('PREPARED FOR', [d.client.name, d.client.contact ? 'Attention: ' + d.client.contact : '', d.client.address, d.client.email])
+    ]})]
+  });
+
+  /* price table */
+  var cols = d.hst ? [5280, 1600, 1600, 1600] : [5520, 2280, 2280];
+  var heads = d.hst ? ['Service', 'How often', 'Price', 'With HST'] : ['Service', 'How often', 'Price'];
+  var allThin = {top:thin, bottom:thin, left:thin, right:thin};
+  var priceRows = [new D.TableRow({tableHeader:true, children:heads.map(function(h, i){
+    return cell([p(run(h, {bold:true, size:9.5, color:'FFFFFF'}), {align:i >= 2 ? D.AlignmentType.RIGHT : undefined, after:0})], cols[i], {fill:NAVY, borders:allThin});
+  })})];
+  d.rows.forEach(function(r, ri){
+    var fillC = ri % 2 ? SOFT : undefined;
+    var cells = [
+      cell([p(run(r.desc, {bold:true, size:9.5}), {after:r.sub ? 20 : 0})].concat(r.sub ? [p(run(r.sub, {size:8.5, color:MUTED}), {after:0})] : []), cols[0], {fill:fillC, borders:allThin}),
+      cell([p(run(r.when, {size:9.5}), {after:0})], cols[1], {fill:fillC, borders:allThin}),
+      cell([p(run(r.price, {size:9.5}), {align:D.AlignmentType.RIGHT, after:0})], cols[2], {fill:fillC, borders:allThin})
+    ];
+    if (d.hst) cells.push(cell([p(run(r.priceHst, {size:9.5}), {align:D.AlignmentType.RIGHT, after:0})], cols[3], {fill:fillC, borders:allThin}));
+    priceRows.push(new D.TableRow({children:cells}));
+  });
+  var priceTable = new D.Table({width:{size:CW, type:D.WidthType.DXA}, columnWidths:cols, rows:priceRows});
+
+  /* totals (right) */
+  var tCols = [3500, 1540];
+  var totals = new D.Table({
+    width:{size:5040, type:D.WidthType.DXA}, columnWidths:tCols, alignment:D.AlignmentType.RIGHT,
+    borders:{top:thin, bottom:thin, left:thin, right:thin, insideHorizontal:none, insideVertical:none},
+    rows:d.totals.map(function(t){
+      var b = t.strong ? {top:{style:D.BorderStyle.SINGLE, size:8, color:NAVY}} : undefined;
+      return new D.TableRow({children:[
+        cell([p(run(t.label, {bold:!!t.strong, size:t.strong ? 11 : 9.5}), {after:0})].concat(t.sub ? [p(run('(' + t.sub + ')', {size:8, color:MUTED}), {after:0})] : []), tCols[0], {fill:SOFT, borders:b, pad:70}),
+        cell([p(run(t.value, {bold:!!t.strong, size:t.strong ? 11 : 9.5}), {align:D.AlignmentType.RIGHT, after:0})], tCols[1], {fill:SOFT, borders:b, pad:70})
+      ]});
+    })
+  });
+
+  /* signatures: label + line cells, so every line gets its own rule */
+  var sc = [1000, 3740, 600, 1000, 3740];
+  var line = {top:none, left:none, right:none, bottom:{style:D.BorderStyle.SINGLE, size:6, color:MUTED}};
+  var blank = {top:none, left:none, right:none, bottom:none};
+  function sp(text, o){ return p(run(text, o), {after:0, keepNext:true}); }
+  function sCell(children, i, borders, span){
+    return new D.TableCell({children:children, columnSpan:span, width:{size:span ? sc[i] + sc[i + 1] : sc[i], type:D.WidthType.DXA}, borders:borders,
+      margins:{top:40, bottom:40, left:60, right:60}, verticalAlign:D.VerticalAlign.BOTTOM});
+  }
+  function fieldRow(label, a, b){
+    return new D.TableRow({cantSplit:true, height:{value:520, rule:D.HeightRule.ATLEAST}, children:[
+      sCell([sp(label, {size:9, color:MUTED})], 0, blank), sCell([sp(a || '', {size:10})], 1, line), sCell([sp('')], 2, blank),
+      sCell([sp(label, {size:9, color:MUTED})], 3, blank), sCell([sp(b || '', {size:10})], 4, line)]});
+  }
+  var sigs = new D.Table({
+    width:{size:CW, type:D.WidthType.DXA}, columnWidths:sc, borders:noBorders,
+    rows:[
+      new D.TableRow({cantSplit:true, children:[sCell([sp('CLIENT', {bold:true, size:9, color:MUTED, spacing:10})], 0, blank, 2), sCell([sp('')], 2, blank),
+        sCell([sp('BROTHERS CLEANING SOLUTION', {bold:true, size:9, color:MUTED, spacing:10})], 3, blank, 2)]}),
+      fieldRow('Name', d.client.contact, d.biz.person), fieldRow('Signature'), fieldRow('Date')
+    ]
+  });
+
+  var children = [
+    headerTable, p(run(''), {after:120}), parties,
+    heading('The job: ' + d.title), p(run(d.place, {size:10})), p(run('Schedule: ' + d.schedule, {size:10})),
+    heading('Price'), priceTable, p(run(''), {after:100}), totals,
+    p(run(d.priceNote, {size:8.5, color:MUTED}), {before:100}),
+    heading("What's included")
+  ];
+  d.includes.forEach(function(t){ children.push(p(run(t, {size:9.5}), {numbering:{reference:'bc-bullets', level:0}, after:40})); });
+  children.push(p(run(d.note, {italics:true, size:9.5, color:MUTED}), {before:80}));
+  children.push(heading('Terms'));
+  d.terms.forEach(function(t){ children.push(p(run(t, {size:9}), {numbering:{reference:'bc-terms', level:0}, after:50, keepNext:true, keepLines:true})); });
+  children.push(heading('Acceptance'));
+  children.push(p(run('To accept this quote, sign below and send it back to us, or simply reply to our email.', {size:9.5}), {after:160, keepNext:true}));
+  children.push(sigs);
+
+  var doc = new D.Document({
+    creator:'Brothers Cleaning Solution', title:'Quote ' + d.number, description:'Cleaning quote',
+    styles:{default:{document:{run:{font:'Arial', size:20, color:NAVY}}},
+      paragraphStyles:[{id:'BCFooter', name:'BC Footer', basedOn:'Normal', run:{font:'Arial', size:16, color:MUTED}, paragraph:{spacing:{before:0, after:0}}}]},
+    numbering:{config:[
+      {reference:'bc-bullets', levels:[{level:0, format:D.LevelFormat.BULLET, text:'•', alignment:D.AlignmentType.LEFT, style:{paragraph:{indent:{left:360, hanging:260}}, run:{color:'C9A21A'}}}]},
+      {reference:'bc-terms', levels:[{level:0, format:D.LevelFormat.DECIMAL, text:'%1.', alignment:D.AlignmentType.LEFT, style:{paragraph:{indent:{left:360, hanging:300}}, run:{bold:true, size:18, color:NAVY}}}]}
+    ]},
+    sections:[{
+      properties:{page:{size:{width:12240, height:15840}, margin:{top:900, bottom:1000, left:1080, right:1080}}},
+      footers:{default:new D.Footer({children:[new D.Paragraph({
+        style:'BCFooter', border:{top:{style:D.BorderStyle.SINGLE, size:4, color:LINE, space:6}},
+        children:[run([d.biz.name, d.biz.phone, d.biz.email].filter(Boolean).join('  ·  ') + '     Quote ' + d.number + '  ·  Page ', {size:8, color:MUTED}),
+          new D.TextRun({children:[D.PageNumber.CURRENT], size:16, color:MUTED, font:'Arial'}), run(' of ', {size:8, color:MUTED}),
+          new D.TextRun({children:[D.PageNumber.TOTAL_PAGES], size:16, color:MUTED, font:'Arial'})]
+      })]})},
+      children:children
+    }]
+  });
+  return D.Packer.toBlob(doc);
+}
+
+/* buttons */
+function quoteFile(kind){
+  var msg = $('#quoteMsg'), btn = $(kind === 'pdf' ? '#pdfQuote' : '#docxQuote');
+  if (!(Q.client || '').trim()){ msg.style.color = 'var(--bad)'; msg.textContent = 'Type the client name first, so it shows on the quote.'; $('#client').focus(); return; }
+  msg.style.color = 'var(--muted)'; msg.textContent = kind === 'pdf' ? 'Making the PDF…' : 'Making the Word file…';
+  busy(btn, true, 'One sec…');
+  var libs = kind === 'pdf' ? loadScript('vendor/jspdf.umd.min.js').then(function(){ return loadScript('vendor/jspdf.plugin.autotable.min.js'); }) : loadScript('vendor/docx.umd.js');
+  libs.then(function(){
+    var d = quoteDoc();
+    return Promise.resolve(kind === 'pdf' ? makeQuotePDF(d) : makeQuoteDOCX(d)).then(function(blob){
+      saveBlob(blob, d.file + (kind === 'pdf' ? '.pdf' : '.docx'));
+      busy(btn, false); msg.style.color = 'var(--good)';
+      msg.textContent = 'Saved "' + d.file + (kind === 'pdf' ? '.pdf' : '.docx') + '". Attach it to your email to the client.';
+    });
+  }).catch(function(e){
+    busy(btn, false); msg.style.color = 'var(--bad)';
+    msg.textContent = 'Couldn\'t make the file. ' + (/load/i.test(String(e && e.message)) ? 'Check your internet and try again.' : 'Try again.');
+  });
+}
+
+/* =========================================================
    FOLLOW-UP PLAN
    Each lead walks a fixed plan of steps. Dates count business
    days only (no weekends, no Ontario stat holidays).
@@ -1579,6 +2024,7 @@ function renderQuoteFor(){
 }
 function quoteForLead(l){
   Q.client = cleanName(l.name); Q.area = l.area || ''; Q.leadId = l.id;
+  Q.contact = l.contact || ''; Q.cemail = l.email || ''; Q.addr = String(l.notes || '').split('\n')[0].split('. ')[0].replace(/\.$/, '');
   if (l.type === 'house') Q.kind = 'house';
   else { Q.kind = 'office'; if (OTYPE[l.type]) Q.otype = l.type; }
   lsSet('bc-quote', Q); fillForm(); syncVisibility(); renderResult(); renderQuoteFor(); stepsDirty = true;

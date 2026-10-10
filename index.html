@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202610100137">
+<link rel="stylesheet" href="styles.css?v=202610100203">
 </head>
 <body>
 
@@ -157,6 +157,9 @@
       <div class="row2">
         <label class="field"><span>Client or business name</span><input id="client" type="text" autocomplete="off" placeholder="e.g. Innes Road Dental"></label>
         <label class="field"><span>Area</span><input id="area" type="text" autocomplete="off" placeholder="e.g. Orléans"></label>
+        <label class="field"><span>Contact person <small class="hint">on the quote</small></span><input id="q-contact" type="text" autocomplete="off" placeholder="e.g. Dr. Sarah Lee"></label>
+        <label class="field"><span>Client address <small class="hint">on the quote</small></span><input id="q-addr" type="text" autocomplete="off" placeholder="Street, city"></label>
+        <label class="field"><span>Client email <small class="hint">optional</small></span><input id="q-email" type="text" inputmode="email" autocomplete="off"></label>
       </div>
 
       <!-- office -->
@@ -443,6 +446,11 @@
         <label class="field"><span>Mailing address</span><input id="me-address" type="text" autocomplete="street-address" placeholder="Street, Orléans, ON, postal code"></label>
       </div>
     </div>
+    <div class="card">
+      <h2>Terms on your quotes</h2>
+      <p class="hint">Printed on every PDF and Word quote. One term per line. Clear it to go back to the standard terms.</p>
+      <textarea id="me-terms" rows="8" aria-label="Quote terms"></textarea>
+    </div>
   </section>
 </main>
 
@@ -463,8 +471,8 @@
   </div>
 </nav>
 
-<script src="config.js?v=202610100137"></script>
+<script src="config.js?v=202610100203"></script>
 <script src="vendor/supabase.js"></script>
-<script src="app.js?v=202610100137"></script>
+<script src="app.js?v=202610100203"></script>
 </body>
 </html>
