@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Brothers Cleaning</title>
+<meta name="description" content="Jobs, photos, quotes and leads for Brothers Cleaning Solution.">
+<meta name="theme-color" content="#13202B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BC Jobs">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css?v=202610100026">
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar-in">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">BC</span>
+      <div>
+        <div class="brand-name">Brothers Cleaning</div>
+        <div class="brand-sub">Solution · Ottawa</div>
+      </div>
+    </div>
+    <div class="me-box" id="meBox" hidden>
+      <span class="me-chip" id="meChip"></span>
+      <button type="button" class="btn small ghost" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Photo" hidden>
+  <img id="lbImg" alt="">
+  <div class="lb-bar"><span id="lbCap"></span><button type="button" class="btn small" id="lbRetake">Retake photo</button><button type="button" class="btn small primary" id="lbClose">Close</button></div>
+</div>
+
+<main class="wrap" id="main">
+  <div class="banner" id="banner" hidden></div>
+
+  <!-- BOOT / NOT CONFIGURED / BLOCKED -->
+  <section id="bootScreen" class="tab"><p class="note">Loading…</p></section>
+  <section id="configScreen" class="tab" hidden>
+    <div class="card"><h1>Almost ready</h1><p>This app isn't connected to its database yet. Moe needs to finish the setup.</p></div>
+  </section>
+  <section id="blockedScreen" class="tab" hidden>
+    <div class="card">
+      <h1>Your account is turned off</h1>
+      <p>You can't see jobs right now. If you think this is a mistake, talk to Moe.</p>
+      <div class="actions"><button type="button" class="btn" id="blockedSignOut">Sign out</button></div>
+    </div>
+  </section>
+
+  <!-- LOGIN -->
+  <section id="authScreen" class="tab" hidden>
+    <div class="card auth-card">
+      <div class="auth-tabs" role="tablist" aria-label="Login">
+        <button type="button" class="auth-tab" role="tab" data-auth="signin" aria-selected="true">Sign in</button>
+        <button type="button" class="auth-tab" role="tab" data-auth="signup" aria-selected="false">Create account</button>
+      </div>
+
+      <form id="signinForm" class="auth-form" novalidate>
+        <h1>Sign in</h1>
+        <label class="field"><span>Email</span><input id="si-email" type="email" autocomplete="username" inputmode="email" required></label>
+        <label class="field"><span>Password</span><input id="si-pass" type="password" autocomplete="current-password" required></label>
+        <button type="submit" class="btn primary wide" id="si-go">Sign in</button>
+        <button type="button" class="linkish" data-auth="forgot">Forgot your password?</button>
+      </form>
+
+      <form id="signupForm" class="auth-form" novalidate hidden>
+        <h1>Create your account</h1>
+        <p class="hint">Use the email Moe added to the team. Other emails won't work.</p>
+        <label class="field"><span>Email</span><input id="su-email" type="email" autocomplete="username" inputmode="email" required></label>
+        <label class="field"><span>Make a password <small class="hint">at least 8 characters</small></span><input id="su-pass" type="password" autocomplete="new-password" required></label>
+        <label class="field"><span>Type it again</span><input id="su-pass2" type="password" autocomplete="new-password" required></label>
+        <button type="submit" class="btn primary wide" id="su-go">Create account</button>
+      </form>
+
+      <form id="forgotForm" class="auth-form" novalidate hidden>
+        <h1>Reset your password</h1>
+        <p class="hint">We'll email you a link to make a new password.</p>
+        <label class="field"><span>Email</span><input id="fp-email" type="email" autocomplete="username" inputmode="email" required></label>
+        <button type="submit" class="btn primary wide" id="fp-go">Send the link</button>
+        <button type="button" class="linkish" data-auth="signin">Back to sign in</button>
+      </form>
+
+      <form id="newPassForm" class="auth-form" novalidate hidden>
+        <h1>Make a new password</h1>
+        <label class="field"><span>New password <small class="hint">at least 8 characters</small></span><input id="np-pass" type="password" autocomplete="new-password" required></label>
+        <label class="field"><span>Type it again</span><input id="np-pass2" type="password" autocomplete="new-password" required></label>
+        <button type="submit" class="btn primary wide" id="np-go">Save new password</button>
+      </form>
+
+      <p class="status-msg" id="authMsg" role="status"></p>
+    </div>
+  </section>
+
+  <!-- WORKER: MY JOBS -->
+  <section id="tab-myjobs" class="tab" aria-labelledby="h-myjobs" hidden>
+    <div class="sec-head">
+      <h1 id="h-myjobs">My jobs</h1>
+      <p class="lede" id="myJobsLede">Tap a job to open it.</p>
+    </div>
+    <div id="myJobsList" class="job-list"></div>
+  </section>
+
+  <!-- ONE JOB (workers and admin) -->
+  <section id="tab-job" class="tab" aria-labelledby="h-job" hidden>
+    <div><button type="button" class="btn small ghost" id="jobBack">← Back</button></div>
+    <div class="card" id="jobHead"></div>
+    <div class="card job-head" id="jobProgress" hidden>
+      <div class="lead-row" style="justify-content:space-between">
+        <span id="photoCount" class="count-badge"></span>
+        <span id="job-count" class="count-badge">0 of 0 done</span>
+      </div>
+      <div class="progress" aria-hidden="true"><div id="job-bar"></div></div>
+      <div class="lead-row" style="justify-content:space-between">
+        <label class="check" style="padding:0"><input type="checkbox" id="split"><span>Split for 2 people</span></label>
+        <span class="actions"><button type="button" class="btn small" id="copySteps">Copy checklist</button></span>
+      </div>
+      <div class="status-msg" id="stepsMsg" role="status"></div>
+      <textarea id="stepsText" class="copybox" readonly hidden aria-label="Checklist text"></textarea>
+    </div>
+    <div class="card" id="clothCard">
+      <div class="eyebrow">Cloth colours. Never mix them.</div>
+      <div class="legend">
+        <span><i class="sw blue"></i>Blue: desks, glass, general</span>
+        <span><i class="sw green"></i>Green: kitchens, food areas</span>
+        <span><i class="sw yellow"></i>Yellow: sinks, counters, washroom walls</span>
+        <span><i class="sw red"></i>Red: toilets and urinals only</span>
+      </div>
+    </div>
+    <div id="sections" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div class="card" id="jobFoot" hidden></div>
+    <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
+  </section>
+
+  <!-- ADMIN: QUOTE -->
+  <section id="tab-quote" class="tab" aria-labelledby="h-quote" hidden>
+    <div class="sec-head">
+      <h1 id="h-quote">Quote a job</h1>
+      <p class="lede">Fill in what you see at the walkthrough. You get the Ottawa going rate and your starter price under it.</p>
+      <div class="alert good" id="quoteFor" hidden></div>
+    </div>
+
+    <div class="seg" role="group" aria-label="Kind of job">
+      <button type="button" class="seg-btn" id="k-office" data-kind="office" aria-pressed="true">Office / commercial</button>
+      <button type="button" class="seg-btn" id="k-house" data-kind="house" aria-pressed="false">House / condo</button>
+    </div>
+
+    <div class="card">
+      <div class="row2">
+        <label class="field"><span>Client or business name</span><input id="client" type="text" autocomplete="off" placeholder="e.g. Innes Road Dental"></label>
+        <label class="field"><span>Area</span><input id="area" type="text" autocomplete="off" placeholder="e.g. Orléans"></label>
+      </div>
+
+      <!-- office -->
+      <div id="office-fields" class="card-body" style="display:flex;flex-direction:column;gap:14px">
+        <label class="field"><span>Type of place</span>
+          <select id="otype">
+            <option value="office">Office</option>
+            <option value="medical">Medical or dental clinic</option>
+            <option value="retail">Store / retail</option>
+            <option value="daycare">Daycare or school</option>
+            <option value="gym">Gym or studio</option>
+          </select>
+        </label>
+        <label class="field"><span>Size in square feet</span>
+          <input id="sqft" type="number" inputmode="numeric" min="100" step="50">
+          <small class="hint">Not sure? Ask the office manager (it's on their lease). Rough guess: number of staff × 175.</small>
+        </label>
+        <div class="counts">
+          <div class="field"><span class="label" id="lbl-wash">Washrooms inside the unit</span>
+            <div class="stepper"><button type="button" class="step" data-step="wash" data-d="-1" aria-label="Fewer washrooms">−</button><input id="wash" type="number" inputmode="numeric" min="0" max="30" aria-labelledby="lbl-wash"><button type="button" class="step" data-step="wash" data-d="1" aria-label="More washrooms">+</button></div>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="kitchen"><span>Kitchen or break room</span></label>
+        <div class="field"><span class="label">How often</span>
+          <div class="chips" role="radiogroup" aria-label="How often">
+            <label class="chip"><input type="radio" name="ofreq" id="of-once" value="once"><span>One time</span></label>
+            <label class="chip"><input type="radio" name="ofreq" id="of-monthly" value="monthly"><span>Monthly</span></label>
+            <label class="chip"><input type="radio" name="ofreq" id="of-biweekly" value="biweekly"><span>Every 2 weeks</span></label>
+            <label class="chip"><input type="radio" name="ofreq" id="of-weekly" value="weekly"><span>Weekly</span></label>
+            <label class="chip"><input type="radio" name="ofreq" id="of-x2" value="x2"><span>2× a week</span></label>
+            <label class="chip"><input type="radio" name="ofreq" id="of-x3" value="x3"><span>3× a week</span></label>
+            <label class="chip"><input type="radio" name="ofreq" id="of-x5" value="x5"><span>5× a week</span></label>
+          </div>
+        </div>
+        <label class="check" id="firstDeep-wrap"><input type="checkbox" id="firstDeep"><span>Deep clean on the first visit <small>— recommended. Offices that switch cleaners usually have buildup.</small></span></label>
+      </div>
+
+      <!-- house -->
+      <div id="house-fields" hidden style="display:flex;flex-direction:column;gap:14px">
+        <div class="counts">
+          <div class="field"><span class="label" id="lbl-bed">Bedrooms</span>
+            <div class="stepper"><button type="button" class="step" data-step="bed" data-d="-1" aria-label="Fewer bedrooms">−</button><input id="bed" type="number" inputmode="numeric" min="0" max="10" aria-labelledby="lbl-bed"><button type="button" class="step" data-step="bed" data-d="1" aria-label="More bedrooms">+</button></div>
+          </div>
+          <div class="field"><span class="label" id="lbl-full">Full bathrooms</span>
+            <div class="stepper"><button type="button" class="step" data-step="full" data-d="-1" aria-label="Fewer full bathrooms">−</button><input id="full" type="number" inputmode="numeric" min="0" max="10" aria-labelledby="lbl-full"><button type="button" class="step" data-step="full" data-d="1" aria-label="More full bathrooms">+</button></div>
+          </div>
+          <div class="field"><span class="label" id="lbl-half">Half baths</span>
+            <div class="stepper"><button type="button" class="step" data-step="half" data-d="-1" aria-label="Fewer half baths">−</button><input id="half" type="number" inputmode="numeric" min="0" max="6" aria-labelledby="lbl-half"><button type="button" class="step" data-step="half" data-d="1" aria-label="More half baths">+</button></div>
+          </div>
+        </div>
+        <label class="field"><span>Home size</span>
+          <select id="hsize">
+            <option value="s0">Under 1,000 sq ft (condo / apartment)</option>
+            <option value="s1">1,000 – 1,999 sq ft</option>
+            <option value="s2">2,000 – 2,999 sq ft</option>
+            <option value="s3">3,000 sq ft or more</option>
+          </select>
+        </label>
+        <div class="field"><span class="label">Kind of clean</span>
+          <div class="chips" role="radiogroup" aria-label="Kind of clean">
+            <label class="chip"><input type="radio" name="htype" id="ht-standard" value="standard"><span>Standard</span></label>
+            <label class="chip"><input type="radio" name="htype" id="ht-deep" value="deep"><span>Deep clean</span></label>
+            <label class="chip"><input type="radio" name="htype" id="ht-move" value="move"><span>Move in / move out</span></label>
+          </div>
+        </div>
+        <div class="field"><span class="label">How often</span>
+          <div class="chips" role="radiogroup" aria-label="How often">
+            <label class="chip"><input type="radio" name="hfreq" id="hf-once" value="once"><span>One time</span></label>
+            <label class="chip"><input type="radio" name="hfreq" id="hf-monthly" value="monthly"><span>Monthly</span></label>
+            <label class="chip"><input type="radio" name="hfreq" id="hf-biweekly" value="biweekly"><span>Every 2 weeks</span></label>
+            <label class="chip"><input type="radio" name="hfreq" id="hf-weekly" value="weekly"><span>Weekly</span></label>
+          </div>
+        </div>
+        <div class="field"><span class="label">Extras</span>
+          <div class="row2" style="gap:0 16px">
+            <label class="check"><input type="checkbox" id="oven"><span>Inside oven <small>+$35</small></span></label>
+            <label class="check"><input type="checkbox" id="fridge"><span>Inside fridge <small>+$35</small></span></label>
+            <label class="check" id="cabinets-wrap"><input type="checkbox" id="cabinets"><span>Inside cabinets <small>+$40</small></span></label>
+            <label class="check" id="baseboards-wrap"><input type="checkbox" id="baseboards"><span>Baseboards <small>+$30</small></span></label>
+            <label class="check"><input type="checkbox" id="basement"><span>Finished basement <small>+$40</small></span></label>
+            <label class="check"><input type="checkbox" id="pets"><span>Pets in the home <small>+$15</small></span></label>
+          </div>
+        </div>
+        <div class="counts">
+          <div class="field"><span class="label" id="lbl-windows">Inside windows <small class="hint">$6 each</small></span>
+            <div class="stepper"><button type="button" class="step" data-step="windows" data-d="-1" aria-label="Fewer windows">−</button><input id="windows" type="number" inputmode="numeric" min="0" max="60" aria-labelledby="lbl-windows"><button type="button" class="step" data-step="windows" data-d="1" aria-label="More windows">+</button></div>
+          </div>
+          <div class="field"><span class="label" id="lbl-stairs">Flights of stairs <small class="hint">$10 each</small></span>
+            <div class="stepper"><button type="button" class="step" data-step="stairs" data-d="-1" aria-label="Fewer flights">−</button><input id="stairs" type="number" inputmode="numeric" min="0" max="6" aria-labelledby="lbl-stairs"><button type="button" class="step" data-step="stairs" data-d="1" aria-label="More flights">+</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field" style="border-top:1px solid var(--line);padding-top:14px"><span class="label">Starter discount under the going rate</span>
+        <div class="chips" role="radiogroup" aria-label="Starter discount">
+          <label class="chip"><input type="radio" name="disc" id="d-0" value="0"><span>0%</span></label>
+          <label class="chip"><input type="radio" name="disc" id="d-5" value="5"><span>5%</span></label>
+          <label class="chip"><input type="radio" name="disc" id="d-10" value="10"><span>10%</span></label>
+          <label class="chip"><input type="radio" name="disc" id="d-15" value="15"><span>15%</span></label>
+          <label class="chip"><input type="radio" name="disc" id="d-20" value="20"><span>20%</span></label>
+        </div>
+        <small class="hint">10% under is enough to win against bigger companies. Going lower usually means working for less than a cleaner's wage.</small>
+      </div>
+      <label class="check"><input type="checkbox" id="hst"><span>Add 13% HST <small>— only once you're registered for HST</small></span></label>
+    </div>
+
+    <div class="card result" id="result" aria-live="polite"></div>
+
+    <div class="card">
+      <details class="more">
+        <summary>Where these prices come from</summary>
+        <ul>
+          <li>Small Ottawa offices usually pay about $0.15–$0.25 per sq ft per visit, so roughly $100–$250 for 1,000 sq ft (<a href="https://hellamaid.ca/?p=58806" target="_blank" rel="noopener">Hellamaid, Ottawa office rates</a>).</li>
+          <li>Across Canada, recurring office cleaning runs $0.10–$0.25 per sq ft per visit, or $30–$60 an hour per cleaner. Bigger offices pay less per sq ft (<a href="https://www.homestars.com/cleaning/price-guides/commercial-office-cleaning-cost" target="_blank" rel="noopener">HomeStars 2026</a>). The app lowers the rate as size goes up, and lowers it per visit for offices cleaned several times a week.</li>
+          <li>A standard 3-hour house clean in Ottawa is about $135–$180 (<a href="https://hellamaid.ca/?p=60702" target="_blank" rel="noopener">Hellamaid, Ottawa house rates</a>). Deep cleans run about $270–$410 and move-outs $260–$450 in Canada (<a href="https://homestars.com/cost-guides/house-apartment-cleaning-cost/" target="_blank" rel="noopener">HomeStars</a>).</li>
+          <li>Recurring house discounts of 10% monthly, 15% every 2 weeks and 20% weekly match what big Ottawa companies advertise.</li>
+          <li>Work time uses about 2,200 sq ft an hour for routine office cleaning. New teams are often slower at first, so time yourselves on the first few jobs.</li>
+        </ul>
+      </details>
+    </div>
+  </section>
+
+  <!-- ADMIN: JOBS -->
+  <section id="tab-jobs" class="tab" aria-labelledby="h-jobs" hidden>
+    <div class="sec-head">
+      <h1 id="h-jobs">Jobs</h1>
+      <p class="lede">Make a job, pick the day and who's going. Workers only see the jobs you put them on.</p>
+    </div>
+    <div class="actions"><button type="button" class="btn primary" id="newJobBtn">+ New job</button></div>
+    <form class="card" id="jobForm" novalidate hidden>
+      <h2 id="jf-title">New job</h2>
+      <div class="row2">
+        <label class="field"><span>Client</span><input id="jf-client" type="text" autocomplete="off" placeholder="e.g. Innes Road Dental"></label>
+        <label class="field"><span>Address</span><input id="jf-address" type="text" autocomplete="off" placeholder="Street, city"></label>
+        <label class="field"><span>Date</span><input id="jf-date" type="date"></label>
+        <label class="field"><span>Start time <small class="hint">optional</small></span><input id="jf-time" type="time"></label>
+      </div>
+      <div class="field"><span class="label">Who's going</span><div id="jf-workers" class="picks"></div></div>
+      <label class="field"><span>Notes for the team <small class="hint">alarm code, which door, parking, what to skip</small></span><textarea id="jf-notes" rows="3"></textarea></label>
+      <div class="field"><span class="label">Rooms and steps</span><p class="note" id="jf-rooms"></p>
+        <label class="check" id="jf-reroom-wrap" hidden><input type="checkbox" id="jf-reroom"><span>Replace the rooms with what's on the Quote tab now</span></label>
+      </div>
+      <div class="actions"><button type="submit" class="btn primary" id="jf-save">Save job</button><button type="button" class="btn ghost" id="jf-cancel">Cancel</button></div>
+      <p class="status-msg" id="jf-msg" role="status"></p>
+    </form>
+    <div class="filter-row" id="jobFilters" role="group" aria-label="Show">
+      <button type="button" data-jf="coming" aria-pressed="true">Coming up</button>
+      <button type="button" data-jf="done" aria-pressed="false">Done</button>
+      <button type="button" data-jf="all" aria-pressed="false">All</button>
+    </div>
+    <div id="jobList" class="job-list"></div>
+  </section>
+
+  <!-- ADMIN: LEADS -->
+  <section id="tab-leads" class="tab" aria-labelledby="h-leads" hidden>
+    <div class="sec-head">
+      <h1 id="h-leads">Leads</h1>
+      <p class="lede">Every office you visit, call or quote goes here, so nothing slips. Both of you see the same list.</p>
+    </div>
+
+    <div class="card">
+      <div class="pipe" id="pipe" role="group" aria-label="Filter by stage"></div>
+      <div class="won-line"><span>Signed contracts, per month</span><b id="wonTotal">$0</b></div>
+    </div>
+
+    <div class="card">
+      <div class="outreach">
+        <div><div class="eyebrow">Follow-ups due now</div><b class="num" id="dueCount">0</b></div>
+        <button type="button" class="btn" id="dueBtn" aria-pressed="false">Show them</button>
+      </div>
+      <div class="outreach">
+        <div><div class="eyebrow">Intro emails ready to send</div><b class="num" id="toEmailCount">0</b></div>
+        <button type="button" class="btn" id="toEmailBtn" aria-pressed="false">Show them</button>
+      </div>
+      <p class="hint">Every lead follows a plan: email, call, follow-up email, visit, last email. Do the step on the blue button and log what happened. The app sets the next step and date for you, skipping weekends and holidays. Send about 15 emails a day so your address doesn't get flagged as spam.</p>
+      <div class="alert warn" id="detailsWarn" hidden>Add a mailing address on the Setup tab first. The law requires a mailing address in business emails.</div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn primary" id="addLeadBtn">+ Add a lead</button>
+    </div>
+
+    <form class="card" id="leadForm" hidden>
+      <div class="card-title"><h2 id="leadFormTitle">New lead</h2><button type="button" class="btn small ghost" id="leadCancel">Cancel</button></div>
+      <div class="row2">
+        <label class="field"><span>Business or person</span><input id="l-name" type="text" required autocomplete="off"></label>
+        <label class="field"><span>Type</span>
+          <select id="l-type">
+            <option value="office">Office</option>
+            <option value="medical">Clinic</option>
+            <option value="retail">Store</option>
+            <option value="daycare">Daycare / school</option>
+            <option value="gym">Gym / studio</option>
+            <option value="pm">Property manager</option>
+            <option value="house">House / condo</option>
+          </select>
+        </label>
+        <label class="field"><span>Contact name</span><input id="l-contact" type="text" autocomplete="off"></label>
+        <label class="field"><span>Phone</span><input id="l-reach" type="text" autocomplete="off"></label>
+        <label class="field"><span>Email</span><input id="l-email" type="text" inputmode="email" autocomplete="off"></label>
+        <label class="field"><span>Area</span><input id="l-area" type="text" autocomplete="off" placeholder="e.g. Orléans"></label>
+        <label class="field"><span>Stage</span>
+          <select id="l-status"></select>
+        </label>
+        <label class="field"><span>Next step</span><input id="l-next" type="text" autocomplete="off" placeholder="e.g. Drop off quote"></label>
+        <label class="field"><span>By when</span><input id="l-date" type="date"></label>
+        <label class="field"><span>Value per month ($)</span><input id="l-value" type="number" inputmode="numeric" min="0" step="5"></label>
+      </div>
+      <label class="field"><span>Notes</span><textarea id="l-notes"></textarea></label>
+      <div class="actions"><button type="submit" class="btn primary" id="leadSave">Save lead</button></div>
+      <div class="status-msg" id="leadMsg" role="status"></div>
+    </form>
+
+    <div id="leadList" style="display:flex;flex-direction:column;gap:12px"></div>
+
+    <div class="card">
+      <details class="more" id="playbook" open>
+        <summary>How to get office leads this week</summary>
+        <ol class="plays">
+          <li><div><b>Walk in to 15–20 offices a day</b><p>Start with plazas and office buildings in Orléans and the east end. Close to home means less driving per job. Go 10–11:30 am or 2–4 pm, ask for the office manager, leave a flyer, and offer a free walkthrough with a quote the next day.</p></div></li>
+          <li><div><b>Call commercial property managers</b><p>One manager can hand you several buildings. Ask who handles cleaning contracts and how to get on their vendor list. They'll ask for insurance, so get it first.</p></div></li>
+          <li><div><b>Go after small clinics, dentists and daycares</b><p>They need cleaning every week and big companies often skip small sites. Clinics pay more because the work needs more care.</p></div></li>
+          <li><div><b>Answer every online lead within 5 minutes</b><p>Bark, HomeStars, Kijiji, Facebook Marketplace and local Facebook groups. The first cleaner to reply often wins.</p></div></li>
+          <li><div><b>Set up Google Business Profile and get 5 reviews</b><p>Do a few house cleans for friends and family at your starter price, then ask each one for a Google review.</p></div></li>
+          <li><div><b>Follow up twice</b><p>Message 3 days after a quote, then again at 10 days. Many jobs are won on the follow-up, not the first visit. Put each follow-up as the next step on the lead.</p></div></li>
+          <li><div><b>Offer a referral thank-you</b><p>For example, $50 off the next month for any client who sends you a business that signs.</p></div></li>
+        </ol>
+      </details>
+    </div>
+  </section>
+
+  <!-- ADMIN: TEAM -->
+  <section id="tab-team" class="tab" aria-labelledby="h-team" hidden>
+    <div class="sec-head">
+      <h1 id="h-team">Team</h1>
+      <p class="lede">Add the people who work with you. They can only create an account with the email you add here.</p>
+    </div>
+    <form class="card" id="inviteForm" novalidate>
+      <h2>Add someone</h2>
+      <div class="row2">
+        <label class="field"><span>Name</span><input id="iv-name" type="text" autocomplete="off" placeholder="e.g. Ali"></label>
+        <label class="field"><span>Their email</span><input id="iv-email" type="email" autocomplete="off" inputmode="email"></label>
+      </div>
+      <div class="field"><span class="label">What can they do?</span>
+        <div class="chips" role="radiogroup" aria-label="Role">
+          <label class="chip"><input type="radio" name="iv-role" value="worker" checked><span>Worker: only their jobs</span></label>
+          <label class="chip"><input type="radio" name="iv-role" value="admin"><span>Admin: everything</span></label>
+        </div>
+      </div>
+      <div class="actions"><button type="submit" class="btn primary" id="iv-go">Add to team</button></div>
+      <p class="status-msg" id="iv-msg" role="status"></p>
+      <textarea id="iv-text" class="copybox" readonly hidden aria-label="Message to send"></textarea>
+      <div class="actions" id="iv-copyRow" hidden><button type="button" class="btn small" id="iv-copy">Copy the message to send them</button></div>
+    </form>
+    <div class="card"><div class="card-title"><h2>People</h2><span class="count-badge" id="teamCount"></span></div><div id="teamList" class="team-list"></div></div>
+    <div class="card" id="inviteCard" hidden><div class="card-title"><h2>Waiting to sign up</h2></div><div id="inviteList" class="team-list"></div></div>
+  </section>
+
+  <!-- ADMIN: SETUP -->
+  <section id="tab-start" class="tab" aria-labelledby="h-start" hidden>
+    <div class="sec-head">
+      <h1 id="h-start">Get set up</h1>
+      <p class="lede">What you need before signing your first office. Tick things off as you go. Every admin sees the same ticks.</p>
+    </div>
+
+    <div class="card">
+      <div class="done-item"><span aria-hidden="true">✓</span><div><b>Business name registered</b><br><small>Sole proprietorship, registered Oct 6, 2026 · BIN 1001769516 · renew before Oct 5, 2031</small></div></div>
+      <ul class="todo" id="setupList"></ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><h2>Starter supply kit</h2><span class="count-badge" id="kitCount"></span></div>
+      <p class="hint">Enough for both of you to clean an office or a house. Office clients usually supply paper towels, toilet paper and hand soap.</p>
+      <div class="kit" id="kitList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Your details on quotes and emails</h2>
+      <p class="hint">Shown at the bottom of every quote and email. Canada's anti-spam law requires a mailing address in business emails: your business address or a PO box. Saved for the whole team.</p>
+      <div class="row2">
+        <label class="field"><span>Your name</span><input id="me-name" type="text" autocomplete="name"></label>
+        <label class="field"><span>Phone</span><input id="me-phone" type="tel" autocomplete="tel"></label>
+        <label class="field"><span>Business email</span><input id="me-email" type="text" inputmode="email" autocomplete="email"></label>
+        <label class="field"><span>Mailing address</span><input id="me-address" type="text" autocomplete="street-address" placeholder="Street, Orléans, ON, postal code"></label>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="strip" id="strip" hidden>
+  <div class="strip-in">
+    <div><div class="strip-price" id="stripPrice">—</div><div class="strip-sub" id="stripSub"></div></div>
+    <button type="button" class="btn small" id="stripGo">See quote</button>
+  </div>
+</div>
+
+<nav class="tabbar" id="tabbar" aria-label="Sections" hidden>
+  <div class="tabbar-in">
+    <button type="button" class="tab-btn" data-tab="quote"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M12 12h2M16 12h0M8 16h2M12 16h2M16 16h0"/></svg><span>Quote</span></button>
+    <button type="button" class="tab-btn" data-tab="jobs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17"/></svg><span>Jobs</span><span class="badge" id="jobsBadge" hidden></span></button>
+    <button type="button" class="tab-btn" data-tab="leads"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.5"/></svg><span>Leads</span><span class="badge" id="dueBadge" hidden></span></button>
+    <button type="button" class="tab-btn" data-tab="team"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2c2.4.2 4.2 1.8 4.8 4.6"/></svg><span>Team</span></button>
+    <button type="button" class="tab-btn" data-tab="start"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg><span>Setup</span></button>
+  </div>
+</nav>
+
+<script src="config.js?v=202610100026"></script>
+<script src="vendor/supabase.js"></script>
+<script src="app.js?v=202610100026"></script>
+</body>
+</html>
