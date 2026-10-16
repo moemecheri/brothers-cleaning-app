@@ -1,6 +1,6 @@
 /* Keeps the app shell available so it opens fast and shows a page even with bad signal.
    Always tries the network first, so updates show up right away. Never touches database or photo requests. */
-const CACHE = 'bc-shell-202610100203';
+const CACHE = 'bc-shell-202610160300';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'vendor/supabase.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });

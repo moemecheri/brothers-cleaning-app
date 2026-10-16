@@ -963,6 +963,11 @@ function renderJobHead(){
       '<div class="actions"><button type="button" class="btn primary" id="finishJobBtn">Finish job</button></div>';
   } else {
     html += '<div class="alert good">Finished ' + esc(niceDate(j.finished_at ? isoOf(new Date(j.finished_at)) : '').replace(/^(Today|Tomorrow)$/, function(w){ return w.toLowerCase(); })) + ' at ' + esc(niceTime(j.finished_at)) + (j.finished_by ? ' by ' + esc(personName(j.finished_by)) : '') + '. ' + t.shots + ' photos.</div>';
+    if (ROLE === 'admin' && t.shots){
+      html += '<p class="note">Send the client a photo report: a PDF with the before and after photos of every room.</p>' +
+        '<div class="actions"><button type="button" class="btn primary" id="reportBtn">Make photo report (PDF)</button>' +
+        '<button type="button" class="btn ghost" id="shareReportBtn"' + (reportFile && reportFile.jobId === j.id && canShareFile(reportFile.file) ? '' : ' hidden') + '>Send it</button></div>';
+    }
   }
   html += '<p class="status-msg" id="jobMsg" role="status"></p>';
   var prev = $('#jobMsg') ? {t:$('#jobMsg').textContent, c:$('#jobMsg').style.color} : null;
@@ -1092,6 +1097,143 @@ function finishJob(){
     }
     if (res && res.reason === 'already_done') return reloadJob(j.id).then(function(){ renderJobScreen(true); });
   }, function(e){ busy($('#finishJobBtn'), false); jobMsg('Couldn\'t finish. ' + errText(e)); });
+}
+
+/* =========================================================
+   PHOTO REPORT: a PDF for the client after a finished job,
+   with the before and after photo of every room.
+   ========================================================= */
+var reportFile = null;   /* {jobId, file} of the last report made, for the Send button */
+function canShareFile(f){ try { return !!(f && navigator.canShare && navigator.canShare({files:[f]})); } catch(e){ return false; } }
+function blobToDataURL(b){ return new Promise(function(res, rej){ var r = new FileReader(); r.onload = function(){ res(r.result); }; r.onerror = function(){ rej(new Error('read')); }; r.readAsDataURL(b); }); }
+function imgSize(url){ return new Promise(function(res){ var i = new Image(); i.onload = function(){ res({w:i.naturalWidth || 4, h:i.naturalHeight || 3}); }; i.onerror = function(){ res({w:4, h:3}); }; i.src = url; }); }
+function fetchPhoto(path){
+  return SB.storage.from('photos').download(path).then(function(r){
+    if (r.error) throw r.error;
+    return blobToDataURL(r.data);
+  }).then(function(url){ return imgSize(url).then(function(s){ return {url:url, w:s.w, h:s.h}; }); });
+}
+function reportDoc(j){
+  var longDate = function(d){ return d.toLocaleDateString('en-CA', {weekday:'long', year:'numeric', month:'long', day:'numeric'}); };
+  var fin = j.finished_at ? new Date(j.finished_at) : null;
+  var day = fin || new Date(j.job_date + 'T12:00:00');
+  var times = (photosByJob[j.id] || []).map(function(p){ return p.taken_at; }).filter(Boolean).sort();
+  var rooms = (j.rooms || []).map(function(r){ return {id:r.id, title:r.title, before:photoOf(j.id, r.id, 'before'), after:photoOf(j.id, r.id, 'after')}; })
+    .filter(function(r){ return r.before || r.after; });
+  var safe = function(s){ return String(s || '').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 60); };
+  return {
+    client: j.client || 'Client', address: j.address || '', date: longDate(day),
+    started: times.length ? niceTime(times[0]) : '', finished: fin ? niceTime(j.finished_at) : '',
+    team: (j.assigned || []).map(personName).join(', '), rooms: rooms,
+    biz: {name:'Brothers Cleaning Solution', person:ME.name || '', phone:ME.phone || '', email:ME.email || ''},
+    file: 'Cleaning report - ' + safe(j.client) + ' - ' + isoOf(day) + '.pdf'
+  };
+}
+function makeReportPDF(d, pics){
+  var doc = new window.jspdf.jsPDF({unit:'pt', format:'letter', compress:true});
+  var W = 612, H = 792, M = 44, CW = W - 2 * M, y;
+  var NAVY = [19, 32, 43], YEL = [243, 196, 49], INK = [19, 32, 43], MUTED = [86, 103, 117], LINE = [211, 220, 227], SOFT = [244, 247, 249];
+  function fill(c){ doc.setFillColor(c[0], c[1], c[2]); }
+  function color(c){ doc.setTextColor(c[0], c[1], c[2]); }
+  function font(style, size){ doc.setFont('helvetica', style); doc.setFontSize(size); }
+  function newPage(){ doc.addPage(); y = M; }
+
+  /* header band */
+  fill(NAVY); doc.rect(0, 0, W, 96, 'F');
+  fill(YEL); doc.roundedRect(M, 26, 44, 44, 7, 7, 'F');
+  font('bold', 18); color(NAVY); doc.text('BC', M + 22, 54, {align:'center'});
+  font('bold', 17); doc.setTextColor(255, 255, 255); doc.text(d.biz.name, M + 58, 44);
+  font('normal', 9.5); doc.setTextColor(198, 209, 218); doc.text('Office, clinic, home and rental cleaning · Ottawa & Orléans', M + 58, 60);
+  font('bold', 22); color(YEL); doc.text('PHOTO REPORT', W - M, 48, {align:'right'});
+  font('normal', 9); doc.setTextColor(255, 255, 255); doc.text(d.date, W - M, 64, {align:'right'});
+
+  /* job details */
+  y = 126;
+  var rows = [['Client', d.client], ['Address', d.address], ['Date', d.date],
+    ['Time', d.started && d.finished ? 'First photo ' + d.started + ' · finished ' + d.finished : (d.finished ? 'Finished ' + d.finished : '')],
+    ['Team', d.team], ['Rooms', d.rooms.length + (d.rooms.length === 1 ? ' room, ' : ' rooms, ') + 'before and after photos']];
+  rows.forEach(function(r){
+    if (!r[1]) return;
+    font('bold', 8); color(MUTED); doc.text(r[0].toUpperCase(), M, y, {charSpace:0.7});
+    font(r[0] === 'Client' ? 'bold' : 'normal', r[0] === 'Client' ? 12 : 10); color(INK);
+    var lines = doc.splitTextToSize(String(r[1]), CW - 80);
+    lines.forEach(function(t, i){ doc.text(t, M + 80, y + i * 13); });
+    y += Math.max(17, lines.length * 13 + 4);
+  });
+  fill(SOFT); doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.roundedRect(M, y + 2, CW, 34, 5, 5, 'FD');
+  font('normal', 9.5); color(INK);
+  doc.text('Every room was photographed before and after cleaning. The time each photo was taken is printed on it.', M + 12, y + 23);
+  y += 50;
+
+  /* rooms: before | after */
+  var gap = 14, colW = (CW - gap) / 2, maxH = 176;
+  d.rooms.forEach(function(r, idx){
+    var a = pics[r.id + ':before'], b = pics[r.id + ':after'];
+    var fit = function(p){ if (!p) return {w:colW, h:Math.min(maxH, colW * 0.75)}; var s = Math.min(colW / p.w, maxH / p.h); return {w:p.w * s, h:p.h * s}; };
+    var fa = fit(a), fb = fit(b), boxH = Math.max(fa.h, fb.h);
+    var need = 22 + 14 + boxH + 18;
+    if (y + need > H - 52) newPage();
+    font('bold', 12.5); color(NAVY); doc.text((idx + 1) + '. ' + r.title, M, y + 4);
+    doc.setDrawColor(YEL[0], YEL[1], YEL[2]); doc.setLineWidth(1.6); doc.line(M, y + 10, M + 28, y + 10);
+    y += 24;
+    [[a, fa, 'BEFORE', r.before, M], [b, fb, 'AFTER', r.after, M + colW + gap]].forEach(function(c){
+      var p = c[0], f = c[1], x = c[4];
+      font('bold', 8); color(c[2] === 'AFTER' ? [150, 115, 0] : MUTED); doc.text(c[2], x, y, {charSpace:0.8});
+      if (c[3] && c[3].taken_at){ font('normal', 8); color(MUTED); doc.text(niceTime(c[3].taken_at), x + colW, y, {align:'right'}); }
+      var iy = y + 6;
+      if (p){
+        fill(SOFT); doc.rect(x, iy, colW, boxH, 'F');
+        doc.addImage(p.url, 'JPEG', x + (colW - f.w) / 2, iy + (boxH - f.h) / 2, f.w, f.h, undefined, 'FAST');
+      } else {
+        fill(SOFT); doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.rect(x, iy, colW, boxH, 'FD');
+        font('normal', 9); color(MUTED); doc.text('No photo', x + colW / 2, iy + boxH / 2, {align:'center'});
+      }
+    });
+    y += 6 + boxH + 18;
+  });
+
+  /* closing line */
+  if (y + 22 > H - 52) newPage();
+  font('normal', 10); color(INK);
+  doc.text('Thank you! If anything needs another look, call or text us and we will come back.', M, y + 6);
+
+  /* footer on every page */
+  var n = doc.getNumberOfPages();
+  for (var i = 1; i <= n; i++){
+    doc.setPage(i);
+    doc.setDrawColor(LINE[0], LINE[1], LINE[2]); doc.setLineWidth(0.6); doc.line(M, H - 38, W - M, H - 38);
+    font('normal', 8); color(MUTED);
+    doc.text([d.biz.name, d.biz.phone, d.biz.email].filter(Boolean).join('  ·  '), M, H - 24);
+    doc.text('Page ' + i + ' of ' + n, W - M, H - 24, {align:'right'});
+  }
+  return doc.output('blob');
+}
+function makeJobReport(id){
+  var j = findJob(id); if (!j) return;
+  var btn = $('#reportBtn');
+  busy(btn, true, 'Making the report…'); jobMsg('Getting the photos…', 'var(--muted)');
+  var d = reportDoc(j), pics = {}, list = [];
+  d.rooms.forEach(function(r){ if (r.before) list.push([r.id + ':before', r.before.path]); if (r.after) list.push([r.id + ':after', r.after.path]); });
+  var loads = list.map(function(x){ return fetchPhoto(x[1]).then(function(p){ pics[x[0]] = p; }, function(){ /* drawn as "No photo" */ }); });
+  Promise.all([loadScript('vendor/jspdf.umd.min.js')].concat(loads)).then(function(){
+    var missing = list.filter(function(x){ return !pics[x[0]]; }).length;
+    var blob = makeReportPDF(d, pics);
+    var file = null; try { file = new File([blob], d.file, {type:'application/pdf'}); } catch(e){}
+    reportFile = file ? {jobId:id, file:file} : null;
+    saveBlob(blob, d.file);
+    busy($('#reportBtn'), false);
+    var sb = $('#shareReportBtn'); if (sb) sb.hidden = !canShareFile(file);
+    jobMsg('Saved "' + d.file + '". ' + (missing ? missing + ' photo' + (missing === 1 ? '' : 's') + ' couldn\'t be loaded and show as "No photo". ' : '') +
+      (canShareFile(file) ? 'Tap Send it to text or email it, or attach the file yourself.' : 'Attach it to a text or email to the client.'), missing ? 'var(--warn)' : 'var(--good)');
+  }).catch(function(e){
+    busy($('#reportBtn'), false);
+    jobMsg('Couldn\'t make the report. ' + (/load/i.test(String(e && e.message)) ? 'Check your internet and try again.' : 'Try again.'));
+  });
+}
+function shareJobReport(){
+  if (!reportFile || !canShareFile(reportFile.file)) return;
+  var j = findJob(reportFile.jobId);
+  navigator.share({files:[reportFile.file], title:reportFile.file.name, text:'Cleaning photo report' + (j ? ' for ' + j.client : '') + ' from Brothers Cleaning Solution.'}).catch(function(){});
 }
 
 /* the photo itself: shrink, stamp date/time, JPEG */
@@ -2285,6 +2427,8 @@ $('#jobHead').addEventListener('click', function(e){
   var b = e.target.closest('button'); if (!b) return;
   if (b.id === 'startJobBtn') startJob();
   if (b.id === 'finishJobBtn') finishJob();
+  if (b.id === 'reportBtn') makeJobReport(currentJobId);
+  if (b.id === 'shareReportBtn') shareJobReport();
 });
 $('#sections').addEventListener('change', function(e){
   var k = e.target.dataset.tick; if (!k) return;
