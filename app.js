@@ -492,7 +492,7 @@ var STATUSES = [
   ['quoted', 'Quoted'], ['won', 'Won'], ['lost', 'Lost']
 ];
 var STATUS_LABEL = {}; STATUSES.forEach(function(s){ STATUS_LABEL[s[0]] = s[1]; });
-var TYPE_LABEL = {office:'Office', medical:'Clinic', retail:'Store', daycare:'Daycare / school', gym:'Gym / studio', pm:'Property manager', house:'House / condo'};
+var TYPE_LABEL = {office:'Office', medical:'Clinic', retail:'Store', daycare:'Daycare / school', gym:'Gym / studio', pm:'Property manager', rental:'Rental manager / host', house:'House / condo'};
 var ME_DEFAULT = {name:'Moe', phone:'', email:'bc_solution@myyahoo.com', address:'119 Winterhaven Drive, Orléans, ON K1W 0H3'};
 var KIND_LABEL = {before:'Before', after:'After'};
 var CAM_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
@@ -1833,7 +1833,7 @@ var ACTIVE = {'new':1, contacted:1};
 function canEmail(l){ return !!(l.email && !l.doNotEmail); }
 function planFor(l){
   if (l.plan && PLANS[l.plan]) return l.plan;
-  if (l.type === 'pm') return canEmail(l) ? 'pmEmail' : 'pmCall';
+  if (l.type === 'pm' || l.type === 'rental') return canEmail(l) ? 'pmEmail' : 'pmCall';
   return canEmail(l) ? 'email' : 'visit';
 }
 function stepIdx(l){
@@ -1866,19 +1866,22 @@ function findLead(id){ return leads.filter(function(x){ return x.id === id; })[0
    ========================================================= */
 function firstName(s){ return String(s || '').trim().split(/\s+/)[0] || ''; }
 function cleanName(s){ return String(s || '').replace(/\s*\([^)]*\)/g, '').replace(/,\s*(Orl[ée]ans|RE\/MAX.*)$/i, '').trim(); }
-function introSubjectFor(nm, l){ return l.type === 'pm' ? 'Cleaning contractor for your Ottawa properties' : 'After-hours cleaning for ' + nm; }
+function introSubjectFor(nm, l){ return l.type === 'rental' ? 'Move-out cleaning for your Ottawa rentals' : (l.type === 'pm' ? 'Cleaning contractor for your Ottawa properties' : 'After-hours cleaning for ' + nm); }
 function emailFor(l, tpl){
   tpl = tpl || 'intro';
   var phone = ME.phone, addr = ME.address || '119 Winterhaven Drive, Orléans, ON K1W 0H3';
   var from = ME.email || 'bc_solution@myyahoo.com', me = ME.name || 'Moe';
   var hi = l.contact ? 'Hi ' + firstName(l.contact) + ',' : 'Hello,';
-  var nm = cleanName(l.name), pm = l.type === 'pm';
+  var nm = cleanName(l.name), pm = l.type === 'pm', rental = l.type === 'rental';
   var reachLine = phone ? 'You can reply here, or call or text me at ' + phone + '.' : 'Just reply to this email and I\'ll set it up.';
   var subject, body;
   if (tpl === 'follow'){
     var sent = touchesOf(l).filter(function(x){ return x.t === 'email' && x.k === 'intro' && x.s; })[0];
     subject = 'Re: ' + (sent ? sent.s : introSubjectFor(nm, l));
-    body = pm ? [hi, '',
+    body = rental ? [hi, '',
+      'Just following up on my note last week about move-out and turnover cleaning for your rentals.', '',
+      'If you have a unit coming up, I can give you a flat price the same day, and you get before and after photos of every room after the clean. Is there a better person for me to talk to about vendors?']
+    : pm ? [hi, '',
       'Just following up on my note last week about getting on your list of cleaning contractors.', '',
       'If one of your east-end buildings needs a cleaner, I can do a free walkthrough and send a written quote within 24 hours. Is there a better person for me to talk to about vendors?']
     : [hi, '',
@@ -1888,8 +1891,18 @@ function emailFor(l, tpl){
   } else if (tpl === 'final'){
     subject = 'Should I close your file?';
     body = [hi, '',
-      'I\'ve reached out a couple of times about ' + (pm ? 'cleaning work for your properties' : 'cleaning for ' + nm) + ' and haven\'t heard back, so I\'ll take it the timing isn\'t right. This is my last email.', '',
+      'I\'ve reached out a couple of times about ' + (rental ? 'cleaning for your rentals' : (pm ? 'cleaning work for your properties' : 'cleaning for ' + nm)) + ' and haven\'t heard back, so I\'ll take it the timing isn\'t right. This is my last email.', '',
       'If anything changes, just reply here and we can do a free walkthrough that same week.'];
+  } else if (rental){
+    subject = introSubjectFor(nm, l);
+    body = [hi, '',
+      'My name is ' + me + '. My brother and I run Brothers Cleaning Solution, a cleaning company based in Orléans.', '',
+      'Every move-out or guest check-out needs a clean before the next person moves in, and I\'d like to help with yours:', '',
+      '- Move-out cleans: inside the fridge, oven, cabinets and closets, bathrooms and floors',
+      '- Turnovers for furnished units: beds made with your linens, kitchen and bathrooms reset',
+      '- A flat price per unit, agreed before we start',
+      '- Before and after photos of every room, sent to you after the clean', '',
+      'Could we do your next move-out? If you like the work, you can add us to your vendor list. ' + reachLine];
   } else if (pm){
     subject = introSubjectFor(nm, l);
     body = [hi, '',
@@ -2167,7 +2180,8 @@ function renderQuoteFor(){
 function quoteForLead(l){
   Q.client = cleanName(l.name); Q.area = l.area || ''; Q.leadId = l.id;
   Q.contact = l.contact || ''; Q.cemail = l.email || ''; Q.addr = String(l.notes || '').split('\n')[0].split('. ')[0].replace(/\.$/, '');
-  if (l.type === 'house') Q.kind = 'house';
+  if (l.type === 'rental'){ Q.kind = 'house'; Q.htype = 'move'; }
+  else if (l.type === 'house') Q.kind = 'house';
   else { Q.kind = 'office'; if (OTYPE[l.type]) Q.otype = l.type; }
   lsSet('bc-quote', Q); fillForm(); syncVisibility(); renderResult(); renderQuoteFor(); stepsDirty = true;
   showTab('quote');
