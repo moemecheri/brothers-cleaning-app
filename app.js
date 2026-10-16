@@ -1813,6 +1813,7 @@ var STEP = {
   call1:  {kind:'call',                label:'Call to follow up',            chip:'Call',       gap:3},
   follow: {kind:'email', tpl:'follow', label:'Send follow-up email',         chip:'Email 2',    gap:2},
   visit:  {kind:'visit',               label:'Walk in with a flyer',         chip:'Visit',      gap:5},
+  call2:  {kind:'call',                label:'Call again',                   chip:'Call 2',     gap:5},
   final:  {kind:'email', tpl:'final',  label:'Send last email',              chip:'Last email', gap:5},
   visitA: {kind:'visit',               label:'Walk in with a flyer',         chip:'Visit',      gap:0},
   callA:  {kind:'call',                label:'Call to follow up',            chip:'Call',       gap:3},
@@ -1821,9 +1822,11 @@ var STEP = {
   callP2: {kind:'call',                label:'Call again',                   chip:'Call 2',     gap:10},
   nurture:{kind:'call',                label:'Check in again',               chip:'Check-in',   gap:60}
 };
+/* One email per business: after the intro email, every follow-up is a call or a visit.
+   (follow and final stay defined for leads saved on an older plan.) */
 var PLANS = {
-  email:   ['intro', 'call1', 'follow', 'visit', 'final', 'nurture'],
-  pmEmail: ['intro', 'call1', 'follow', 'final', 'nurture'],
+  email:   ['intro', 'call1', 'visit', 'call2', 'nurture'],
+  pmEmail: ['intro', 'call1', 'callP2', 'nurture'],
   visit:   ['visitA', 'callA', 'visitB', 'nurture'],
   pmCall:  ['callP', 'callP2', 'nurture']
 };
