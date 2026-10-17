@@ -330,6 +330,10 @@ input[type=email],input[type=password],input[type=time]{width:100%;background:va
 .auth-form{display:flex;flex-direction:column;gap:14px}
 .auth-form[hidden]{display:none}
 .auth-form h1{font-size:1.7rem}
+.auth-about{border-top:1px solid var(--line);padding-top:14px;font-size:.88rem;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.auth-about p{margin:0}
+.auth-about b{color:var(--ink)}
+.auth-about a{color:inherit}
 
 .job-list{display:flex;flex-direction:column;gap:12px}
 .job-card2{gap:8px}
