@@ -367,3 +367,60 @@ div.ph{color:var(--muted);cursor:default}
 
 .tabbar-in{grid-template-columns:repeat(5,1fr)}
 .tabbar[hidden],.strip[hidden]{display:none}
+
+/* ---------- quote: step cards ---------- */
+.qstep{gap:16px}
+.qstep-head{display:flex;align-items:center;gap:10px}
+.qstep-head h2{font-size:1.3rem}
+.qstep-head h2 small{font-family:var(--font-body);font-weight:500;font-size:.85rem}
+.qnum{width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--surface);display:grid;place-items:center;font-family:var(--font-display);font-weight:700;font-size:1rem;flex:none}
+.qgroup{display:flex;flex-direction:column;gap:14px}
+.qgroup[hidden],.qnote[hidden]{display:none!important}
+.qnote{font-size:.9rem;color:var(--muted);background:var(--surface-2);border-radius:9px;padding:10px 12px}
+.row2.tight{gap:0 16px}
+.chip span small{margin-left:6px;opacity:.75;font-size:.8rem}
+
+/* job type and price level tiles */
+.svc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.lvl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media (max-width:640px){.svc-grid{grid-template-columns:1fr 1fr}.lvl-grid{grid-template-columns:1fr}}
+.svc,.lvl{position:relative;display:block}
+.svc input,.lvl input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:1}
+.svc-in,.lvl-in{display:flex;flex-direction:column;gap:4px;height:100%;padding:14px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface-2);transition:border-color .15s,background .15s}
+.svc-in svg{width:28px;height:28px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;margin-bottom:4px}
+.svc-in b,.lvl-in b{font-weight:700;line-height:1.25}
+.svc-in small,.lvl-in small{color:var(--muted);line-height:1.35}
+.svc input:checked + .svc-in,.lvl input:checked + .lvl-in{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+.svc input:focus-visible + .svc-in,.lvl input:focus-visible + .lvl-in{outline:3px solid var(--accent);outline-offset:2px}
+.lvl-in{flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+.lvl-in small{flex-basis:100%}
+.lvl-price{margin-left:auto;font-family:var(--font-display);font-weight:700;font-size:1.15rem;font-variant-numeric:tabular-nums}
+
+/* ---------- quote: result ---------- */
+.q-top{display:flex;flex-direction:column;gap:4px}
+.q-what{color:var(--muted);font-size:.92rem}
+.range{display:flex;flex-direction:column;gap:6px}
+.range-cap{font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.range-track{position:relative;height:10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);margin:30px 6px 4px}
+.range-fill{position:absolute;top:-1px;bottom:-1px;border-radius:999px;background:var(--accent-soft);border:1px solid var(--accent)}
+.range-mid{position:absolute;top:-5px;width:2px;height:18px;background:var(--muted);transform:translateX(-1px)}
+.range-you{position:absolute;top:-30px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px}
+.range-you b{background:var(--ink);color:var(--surface);border-radius:6px;padding:1px 7px;font-size:.78rem;white-space:nowrap}
+.range-you i{width:14px;height:14px;border-radius:50%;background:var(--tag);border:2px solid var(--ink);margin-top:3px}
+.range-labels{display:grid;grid-template-columns:1fr 1fr 1fr;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.range-labels span:nth-child(2){text-align:center}
+.range-labels span:nth-child(3){text-align:right}
+.range-labels b{display:block;color:var(--ink);font-size:.95rem}
+.range-verdict{font-weight:600;font-size:.93rem}
+.qacts{display:flex;flex-direction:column;gap:0;border-top:1px solid var(--line)}
+.qact{display:flex;flex-direction:column;gap:10px;padding:16px 0;border-bottom:1px solid var(--line)}
+.qact:last-child{border-bottom:0;padding-bottom:0}
+.qact h3{font-size:1.15rem}
+.qact > p{color:var(--muted);font-size:.92rem;max-width:62ch}
+.qbtns{display:flex;flex-wrap:wrap;gap:8px}
+.qrow{display:grid;grid-template-columns:minmax(170px,max-content) 1fr;gap:6px 14px;align-items:center}
+.qrow p{color:var(--muted);font-size:.9rem}
+@media (max-width:520px){.qrow{grid-template-columns:1fr}.qrow .btn{width:100%}}
+.bid-amt{display:flex;align-items:baseline;gap:10px;background:var(--surface-2);border-radius:9px;padding:10px 12px}
+.bid-amt b{font-family:var(--font-display);font-size:1.6rem;font-variant-numeric:tabular-nums}
+.msgbox{font-size:.92rem;min-height:190px;line-height:1.45}

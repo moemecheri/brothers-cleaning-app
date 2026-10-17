@@ -50,10 +50,39 @@ var HSIZE = {
   s3: {label:'3,000+ sq ft',      adj:65,  h:1.0}
 };
 
-var DEFAULT_Q = {kind:'office', client:'', area:'', contact:'', addr:'', cemail:'', otype:'office', sqft:1200, wash:1, kitchen:true, ofreq:'weekly', firstDeep:true,
+/* Airbnb / rental turnovers. Ottawa per-turnover prices found in Oct 2026 (see "Where these prices come from"):
+   low = the cheapest Ottawa prices we found, mid = typical, high = top of the usual range. h = work hours for one person. */
+var TURN = [
+  {label:'Studio',     low:70,  mid:90,  high:110, h:1.25},
+  {label:'1 bedroom',  low:80,  mid:115, high:140, h:1.75},
+  {label:'2 bedrooms', low:110, mid:150, high:180, h:2.5},
+  {label:'3 bedrooms', low:150, mid:205, high:260, h:3.25},
+  {label:'4 bedrooms', low:220, mid:290, high:380, h:4.25}
+];
+var TLAUNDRY = {
+  host:     {label:'Host leaves clean linens',   short:'beds made with the clean linens the host leaves', add:0,  h:0},
+  onsite:   {label:'Washer and dryer in the unit', short:'sheets and towels washed and dried in the unit', add:15, h:0.5},
+  takehome: {label:'We take laundry home',       short:'sheets and towels washed off-site and returned fresh', add:35, h:1}
+};
+var TSIZE = {s0:[0, 0], s1:[0, 0], s2:[30, 0.5], s3:[60, 1]};
+/* Every price level keeps at least this much per work hour (before gas and supplies). */
+var MIN_HOURLY = 35;
+var LEVELS = {
+  intro:  {label:'Intro price',   next:'below'},
+  below:  {label:'Below average', next:'market'},
+  market: {label:'Market price',  next:''}
+};
+var SVC_LABEL = {office:'Office / commercial', home:'Home cleaning', move:'Move in / move out', turnover:'Airbnb turnover'};
+
+var DEFAULT_Q = {svc:'office', kind:'office', client:'', area:'', contact:'', addr:'', cemail:'', otype:'office', sqft:1200, wash:1, kitchen:true, ofreq:'weekly', firstDeep:true,
   bed:3, full:2, half:0, hsize:'s1', htype:'standard', hfreq:'biweekly', oven:false, fridge:false, cabinets:false, baseboards:false,
-  basement:false, pets:false, windows:0, stairs:1, disc:10, hst:false, leadId:''};
+  basement:false, pets:false, windows:0, stairs:1, level:'intro', hst:false, leadId:'',
+  tlaundry:'onsite', tmonth:4, theavy:false, trush:false};
 var Q = Object.assign({}, DEFAULT_Q, lsGet('bc-quote', {}));
+/* quotes saved by the older version of the app had no job type or price level */
+if (!SVC_LABEL[Q.svc]) Q.svc = Q.kind === 'office' ? 'office' : (Q.htype === 'move' ? 'move' : 'home');
+if (!LEVELS[Q.level]) Q.level = 'intro';
+applySvc(Q);
 var ME = Object.assign({name:'Moe', phone:'', email:'bc_solution@myyahoo.com', address:'119 Winterhaven Drive, Orléans, ON K1W 0H3'}, lsGet('bc-me', {}));
 if (!ME.address) ME.address = '119 Winterhaven Drive, Orléans, ON K1W 0H3';
 
@@ -102,141 +131,197 @@ function calcHouse(q){
     first:{mid:firstMid, hours:firstHours, label: q.htype === 'deep' ? 'First visit (deep clean)' : 'First visit'}};
 }
 
-function calc(){ return Q.kind === 'office' ? calcOffice(Q) : calcHouse(Q); }
-function yourPrice(mid){ return r5(mid * (1 - (Q.disc || 0) / 100)); }
+function calcTurnover(q){
+  var bed = Math.max(0, +q.bed || 0), full = Math.max(1, +q.full || 0), half = Math.max(0, +q.half || 0);
+  var t = TURN[Math.min(bed, 4)], extraBeds = Math.max(0, bed - 4);
+  var low = t.low + 60 * extraBeds, mid = t.mid + 70 * extraBeds, high = t.high + 90 * extraBeds, h = t.h + 0.75 * extraBeds;
+  var xb = Math.max(0, full - (bed >= 3 ? 2 : 1));          /* the base prices include 1 bathroom (2 from 3 bedrooms up) */
+  var add = 20 * xb + 10 * half; h += 0.4 * xb + 0.2 * half;
+  var sz = TSIZE[q.hsize] || TSIZE.s0; add += sz[0]; h += sz[1];
+  var la = TLAUNDRY[q.tlaundry] || TLAUNDRY.host; add += la.add; h += la.h;
+  if (q.pets){ add += 15; h += 0.25; }
+  var m = q.trush ? 1.2 : 1, per = Math.max(1, Math.min(31, +q.tmonth || 1));
+  var res = {kind:'turnover', fr:{label: plural(per, 'turnover') + ' a month', word:'per turnover'},
+    low:r5((low + add) * m), mid:r5((mid + add) * m), high:r5((high + add) * m), hours:h, visits:per, first:null};
+  if (q.theavy) res.first = {low:r5((low + add + 50) * m), mid:r5((mid + add + 50) * m), hours:h + 1.5, label:'First turnover (deep reset)'};
+  return res;
+}
+function calcFor(q){ return q.kind === 'turnover' ? calcTurnover(q) : (q.kind === 'office' ? calcOffice(q) : calcHouse(q)); }
+function calc(){ return calcFor(Q); }
+
+/* The job type picked on screen decides the calculator: office, house (standard / deep / move) or turnover. */
+function applySvc(q){
+  if (q.svc === 'office') q.kind = 'office';
+  else if (q.svc === 'turnover') q.kind = 'turnover';
+  else { q.kind = 'house'; if (q.svc === 'move') q.htype = 'move'; else if (q.htype === 'move') q.htype = 'standard'; }
+  if (q.htype === 'move') q.hfreq = 'once';
+  return q;
+}
+/* intro = just under the low end, below = halfway to typical, market = typical. Never under MIN_HOURLY per work hour. */
+function levelPrice(level, low, mid, hours){
+  var p = level === 'market' ? mid : (level === 'below' ? (low + mid) / 2 : low - 5);
+  var floor = Math.ceil(hours * MIN_HOURLY / 5) * 5, price = r5(p);
+  return {price: Math.max(price, floor), floored: price < floor};
+}
+function priceInfo(q, level){
+  q = q || Q;
+  var r = calcFor(q), lv = LEVELS[level || q.level] ? (level || q.level) : 'intro';
+  var main = levelPrice(lv, r.low, r.mid, r.hours);
+  var first = r.first ? levelPrice(lv, r.first.low || r5(r.first.mid * 0.85), r.first.mid, r.first.hours) : null;
+  var recurring = r.visits > 0;
+  return {r:r, level:lv, you:main.price, floored:main.floored, firstYou: first ? first.price : 0,
+    recurring:recurring, month: recurring ? r5(main.price * r.visits) : 0, perHour: main.price / Math.max(0.25, r.hours),
+    unit: r.kind === 'turnover' ? 'per turnover' : (recurring ? 'per visit' : 'for the job')};
+}
 
 /* =========================================================
    QUOTE FORM
    ========================================================= */
-var numIds = ['sqft','wash','bed','full','half','windows','stairs'];
-var checkIds = ['kitchen','firstDeep','oven','fridge','cabinets','baseboards','basement','pets','hst'];
-var radioNames = ['ofreq','htype','hfreq','disc'];
+var numIds = ['sqft','wash','bed','full','half','windows','stairs','tmonth'];
+var checkIds = ['kitchen','firstDeep','oven','fridge','cabinets','baseboards','basement','pets','hst','theavy','trush'];
+var radioNames = ['svc','ofreq','hfreq','level','tlaundry'];
 
 function fillForm(){
   $('#client').value = Q.client; $('#area').value = Q.area; $('#q-contact').value = Q.contact || ''; $('#q-addr').value = Q.addr || ''; $('#q-email').value = Q.cemail || ''; $('#otype').value = Q.otype; $('#hsize').value = Q.hsize;
   numIds.forEach(function(id){ $('#' + id).value = Q[id]; });
   checkIds.forEach(function(id){ $('#' + id).checked = !!Q[id]; });
   radioNames.forEach(function(n){ var el = $('input[name="' + n + '"][value="' + Q[n] + '"]'); if (el) el.checked = true; });
+  var hc = $('input[name="hclean"][value="' + (Q.htype === 'deep' ? 'deep' : 'standard') + '"]'); if (hc) hc.checked = true;
 }
 
 function readForm(){
   Q.client = $('#client').value.trim(); Q.area = $('#area').value.trim(); Q.contact = $('#q-contact').value.trim(); Q.addr = $('#q-addr').value.trim(); Q.cemail = $('#q-email').value.trim(); Q.otype = $('#otype').value; Q.hsize = $('#hsize').value;
   numIds.forEach(function(id){ var v = parseInt($('#' + id).value, 10); Q[id] = isNaN(v) ? 0 : v; });
   checkIds.forEach(function(id){ Q[id] = $('#' + id).checked; });
-  radioNames.forEach(function(n){ var el = $('input[name="' + n + '"]:checked'); if (el) Q[n] = n === 'disc' ? +el.value : el.value; });
+  radioNames.forEach(function(n){ var el = $('input[name="' + n + '"]:checked'); if (el) Q[n] = el.value; });
+  var hc = $('input[name="hclean"]:checked'); if (hc && Q.svc === 'home') Q.htype = hc.value;
+  applySvc(Q);
 }
 
 function syncVisibility(){
-  var office = Q.kind === 'office';
-  $('#office-fields').hidden = !office; $('#house-fields').hidden = office;
-  $('#office-fields').style.display = office ? 'flex' : 'none';
-  $('#house-fields').style.display = office ? 'none' : 'flex';
-  $('#k-office').setAttribute('aria-pressed', office); $('#k-house').setAttribute('aria-pressed', !office);
+  var svc = Q.svc, rooms = svc === 'home' || svc === 'move' || svc === 'turnover';
+  $('#office-fields').hidden = svc !== 'office';
+  $('#rooms-fields').hidden = !rooms;
+  $('#home-fields').hidden = svc !== 'home';
+  $('#move-note').hidden = svc !== 'move';
+  $('#turn-fields').hidden = svc !== 'turnover';
+  $('#turn-note').hidden = svc !== 'turnover';
+  $('#extras-fields').hidden = !rooms;
+  $('#basement-wrap').hidden = svc === 'turnover';
+  $('#winstairs').hidden = svc === 'turnover';
   $('#firstDeep-wrap').hidden = Q.ofreq === 'once';
-  var move = Q.htype === 'move';
-  $$('input[name="hfreq"]').forEach(function(r){ r.disabled = move && r.value !== 'once'; });
-  if (move){ $('#hf-once').checked = true; }
-  $('#cabinets-wrap').hidden = move;
   $('#baseboards-wrap').hidden = Q.htype !== 'standard';
-  $('#client').placeholder = office ? 'e.g. Innes Road Dental' : 'e.g. Sarah T.';
+  $('#placeTitle').textContent = {office:'About the place', home:'About the home', move:'About the home', turnover:'About the rental'}[svc];
+  $('#bedHint').textContent = svc === 'turnover' ? '0 = studio' : '';
+  $('#lvl-intro-sub').textContent = svc === 'turnover' ? 'Just under the cheapest Ottawa prices. Wins your first clients.' : 'Well under the Ottawa going rate. Wins your first clients.';
+  $('#clientLbl').textContent = svc === 'turnover' ? 'Host or listing name' : 'Client or business name';
+  $('#clientHint').textContent = svc === 'turnover' ? 'Skip this for Turno bids. Fill it in for hosts you quote directly.' : 'Shown on the PDF quote and saved with the lead.';
+  $('#client').placeholder = svc === 'office' ? 'e.g. Innes Road Dental' : (svc === 'turnover' ? 'e.g. Sarah, Byward condo' : 'e.g. Sarah T.');
 }
 
 function onQuoteChange(){
   readForm();
-  if (Q.htype === 'move') Q.hfreq = 'once';
   /* the 'change' that follows typing must not redraw the buttons mid-tap */
   var sig = JSON.stringify(Q); if (sig === onQuoteChange.last) return; onQuoteChange.last = sig;
   syncVisibility(); lsSet('bc-quote', Q); renderResult(); stepsDirty = true;
 }
 
 function renderResult(){
-  var r = calc(), d = Q.disc || 0, you = yourPrice(r.mid), recurring = r.visits > 0;
-  var month = recurring ? r5(you * r.visits) : 0;
-  var firstYou = r.first ? yourPrice(r.first.mid) : 0;
-  var perHour = you / Math.max(0.25, r.hours);
-  var unit = recurring ? 'per visit' : 'for the job';
-  var html = '';
-  html += '<div class="market"><div class="eyebrow">Ottawa going rate</div>' +
-          '<div class="market-line"><span class="market-price">' + money(r.mid) + '</span><span class="market-range">' + unit + ' · usual range ' + money(r.low) + '–' + money(r.high) + '</span></div></div>';
-  html += '<div class="pricetag"><div class="pt-label">Your starter price' + (d ? ' · ' + d + '% under' : '') + '</div>' +
-          '<div class="pt-price">' + money(you) + ' <small>' + unit + '</small></div>' +
-          (recurring ? '<div class="pt-sub">≈ ' + money(month) + ' a month · ' + r.fr.word + '</div>' : '<div class="pt-sub">' + (Q.kind === 'house' ? (HTYPE[Q.htype].label + ' clean, one time') : 'One-time clean') + '</div>') +
-          '</div>';
+  var pi = priceInfo(), r = pi.r, lv = LEVELS[pi.level], turn = r.kind === 'turnover';
+  var what = turn ? (Q.bed ? plural(+Q.bed, 'bedroom') : 'Studio') + ', ' + plural(Math.max(1, +Q.full || 0), 'bathroom') + ' · ' + (TLAUNDRY[Q.tlaundry] || TLAUNDRY.host).label.toLowerCase()
+    : (r.kind === 'office' ? (OTYPE[Q.otype] || OTYPE.office).label + ', ' + Number(Q.sqft).toLocaleString('en-CA') + ' sq ft · ' + r.fr.label.toLowerCase()
+    : (HTYPE[Q.htype] || HTYPE.standard).label + ' clean, ' + plural(+Q.bed || 0, 'bedroom') + ', ' + plural(+Q.full || 0, 'bathroom') + ' · ' + (Q.htype === 'move' ? 'one time' : r.fr.label.toLowerCase()));
+  var html = '<div class="q-top"><div class="eyebrow">Your quote · ' + esc(SVC_LABEL[Q.svc]) + '</div><div class="q-what">' + esc(what) + '</div></div>';
+  html += '<div class="pricetag"><div class="pt-label">' + esc(lv.label) + '</div>' +
+    '<div class="pt-price">' + money(pi.you) + ' <small>' + pi.unit + '</small></div>' +
+    (pi.recurring ? '<div class="pt-sub">≈ ' + money(pi.month) + ' a month' + (turn ? ' at ' + plural(r.visits, 'turnover') + ' a month' : ' · ' + r.fr.word) + '</div>' : '<div class="pt-sub">One-time job</div>') + '</div>';
+
+  /* where this sits against Ottawa prices */
+  var lo = Math.min(r.low, pi.you), hi = Math.max(r.high, pi.you), pad = (hi - lo) * 0.08 || 10, min = lo - pad, max = hi + pad;
+  var pos = function(v){ return Math.max(0, Math.min(100, (v - min) / (max - min) * 100)).toFixed(1); };
+  var verdict = pi.you < r.low ? (turn ? 'Cheaper than every Ottawa price we found for this size.' : 'Under the usual Ottawa range.')
+    : (pi.you < r.mid ? 'Under the typical Ottawa price.' : 'At the typical Ottawa price.');
+  html += '<div class="range"><div class="range-cap">' + (turn ? 'Ottawa turnover prices we found' : 'Ottawa going rate for this job') + '</div>' +
+    '<div class="range-track"><span class="range-fill" style="left:' + pos(r.low) + '%;width:' + (pos(r.high) - pos(r.low)).toFixed(1) + '%"></span>' +
+    '<span class="range-mid" style="left:' + pos(r.mid) + '%"></span>' +
+    '<span class="range-you" style="left:' + pos(pi.you) + '%"><b>You ' + money(pi.you) + '</b><i></i></span></div>' +
+    '<div class="range-labels"><span>Low end<b>' + money(r.low) + '</b></span><span>Typical<b>' + money(r.mid) + '</b></span><span>High end<b>' + money(r.high) + '</b></span></div>' +
+    '<div class="range-verdict">' + verdict + '</div></div>';
+
   var facts = [];
-  if (r.first) facts.push([r.first.label, money(firstYou)]);
-  facts.push(['Work time per visit', hrs(r.hours) + ' · about ' + hrs(r.hours / 2) + ' with 2 of you']);
-  if (r.first) facts.push(['First visit work time', hrs(r.first.hours)]);
-  facts.push(['You make per work hour', money(perHour) + ' <small>(before gas & supplies)</small>']);
-  if (recurring) facts.push(['Per year', money(month * 12)]);
-  if (Q.hst){
-    facts.push(['With 13% HST', money(you * 1.13) + ' ' + unit + (recurring ? ' · ' + money(month * 1.13) + '/mo' : '')]);
-  }
+  if (r.first) facts.push([r.first.label, money(pi.firstYou)]);
+  facts.push(['Work time' + (pi.recurring && !turn ? ' per visit' : ''), hrs(r.hours) + ' · about ' + hrs(r.hours / 2) + ' with 2 of you']);
+  facts.push(['You make per work hour', money(pi.perHour) + ' <small>(before gas & supplies)</small>']);
+  if (pi.recurring) facts.push(['Per year', money(pi.month * 12)]);
+  if (Q.hst) facts.push(['With 13% HST', money(pi.you * 1.13) + ' ' + pi.unit + (pi.recurring ? ' · ' + money(pi.month * 1.13) + ' a month' : '')]);
   html += '<dl class="facts">' + facts.map(function(f){ return '<div><dt>' + f[0] + '</dt><dd>' + f[1] + '</dd></div>'; }).join('') + '</dl>';
-  if (perHour < 35){
-    html += '<div class="alert warn">That works out to under $35 per work hour. Ottawa cleaners charge about $30–$45 an hour each, so you\'d barely cover gas and supplies. Lower the discount or raise the price.</div>';
-  } else if (Q.kind === 'office' && Q.otype === 'medical'){
-    html += '<div class="alert warn">Clinics need extra care: never touch sharps bins or biohazard bags. Ask what disinfectant they want you to use.</div>';
+
+  if (pi.floored) html += '<div class="alert warn">We kept this at ' + money(pi.you) + ' so you still make at least $' + MIN_HOURLY + ' per work hour. Going lower means working for less than gas, supplies and a fair wage.</div>';
+  if (lv.next){
+    var nx = priceInfo(Q, lv.next), nx2 = lv.next === 'below' ? priceInfo(Q, 'market') : null;
+    html += '<div class="alert good">Raise it as you grow: ' + (nx2 ? 'after about 5 good reviews, go to ' + money(nx.you) + ' (below average). After about 15, ' + money(nx2.you) + ' (market price).' : 'after about 15 good reviews, go to ' + money(nx.you) + ' (market price).') + '</div>';
   }
-  html += '<div class="actions"><button type="button" class="btn primary" id="pdfQuote">Quote for client (PDF)</button><button type="button" class="btn" id="docxQuote">Word version</button><button type="button" class="btn dark" id="saveLead">' + (linkedLead() ? 'Update this lead' : 'Save to leads') + '</button><button type="button" class="btn ghost" id="toSteps">Make a job from this →</button></div>' +
-          '<div class="status-msg" id="quoteMsg" role="status"></div>' +
-          '<textarea id="quoteText" class="copybox" readonly hidden aria-label="Quote text"></textarea>';
+  if (r.kind === 'office' && Q.otype === 'medical') html += '<div class="alert warn">Clinics need extra care: never touch sharps bins or biohazard bags. Ask what disinfectant they want you to use.</div>';
+
+  /* what to do with it */
+  html += '<div class="qacts">';
+  if (turn){
+    html += '<div class="qact"><h3>Bid on Turno</h3>' +
+      '<div class="bid-amt"><span>Bid</span><b>' + money(pi.you) + '</b><span class="hint">' + (r.first ? 'Mention the first deep reset (' + money(pi.firstYou) + ') in the chat once you\'re hired.' : 'per turnover') + '</span></div>' +
+      '<p>Paste this in the "Message to host" box. It follows Turno\'s rules: no phone number, email, last name or business name.</p>' +
+      '<textarea class="copybox msgbox" id="bidMsg" aria-label="Bid message">' + esc(bidMessage(Q)) + '</textarea>' +
+      '<div class="qbtns"><button type="button" class="btn primary" id="copyBid">Copy bid message</button></div>' +
+      '<p>After the host picks you, send this in Turno\'s chat:</p>' +
+      '<textarea class="copybox msgbox" id="hiredMsg" aria-label="Message after you are hired">' + esc(hiredMessage(Q)) + '</textarea>' +
+      '<div class="qbtns"><button type="button" class="btn" id="copyHired">Copy this message</button></div></div>';
+  }
+  html += '<div class="qact"><h3>' + (turn ? 'Quote a host directly' : 'Send the quote') + '</h3>' +
+    '<div class="qrow"><button type="button" class="btn ' + (turn ? '' : 'primary') + '" id="pdfQuote">Download PDF quote</button><p>A professional quote with your price, what\'s included and your terms. Attach it to an email or text.</p></div>' +
+    '<div class="qrow"><button type="button" class="btn" id="docxQuote">Download Word version</button><p>The same quote as a Word file, if you want to edit it first.</p></div></div>';
+  html += '<div class="qact"><h3>Keep track</h3>' +
+    '<div class="qrow"><button type="button" class="btn dark" id="saveLead">' + (linkedLead() ? 'Update this lead' : 'Save to leads') + '</button><p>Adds it to Leads as Quoted, with a reminder to follow up in 3 business days.</p></div>' +
+    '<div class="qrow"><button type="button" class="btn" id="toSteps">Make a job from this</button><p>Creates a job with the room-by-room checklist and before and after photos.</p></div></div>';
+  html += '</div><div class="status-msg" id="quoteMsg" role="status"></div>';
   $('#result').innerHTML = html;
+  Object.keys(LEVELS).forEach(function(k){ var el = $('#lp-' + k); if (el) el.textContent = money(priceInfo(Q, k).you); });
+  fitMsgBoxes();
   $('#pdfQuote').addEventListener('click', function(){ quoteFile('pdf'); });
   $('#docxQuote').addEventListener('click', function(){ quoteFile('docx'); });
   $('#saveLead').addEventListener('click', saveQuoteAsLead);
   $('#toSteps').addEventListener('click', function(){ openNewJob(); });
-  $('#stripPrice').textContent = money(you) + (recurring ? ' / visit' : '');
-  $('#stripSub').textContent = recurring ? '≈ ' + money(month) + ' a month' : 'Going rate ' + money(r.mid);
+  if (turn){
+    $('#copyBid').addEventListener('click', function(e){ copyFrom(e.currentTarget, $('#bidMsg').value, $('#bidMsg'), $('#quoteMsg')); });
+    $('#copyHired').addEventListener('click', function(e){ copyFrom(e.currentTarget, $('#hiredMsg').value, $('#hiredMsg'), $('#quoteMsg')); });
+  }
+  $('#stripPrice').textContent = money(pi.you) + (turn ? ' / turnover' : (pi.recurring ? ' / visit' : ''));
+  $('#stripSub').textContent = lv.label + (pi.recurring ? ' · ≈ ' + money(pi.month) + ' a month' : '');
 }
 
-function quoteMessage(){
-  var r = calc(), you = yourPrice(r.mid), recurring = r.visits > 0, month = recurring ? r5(you * r.visits) : 0;
-  var hstTag = Q.hst ? ' + HST' : '';
-  var hi = 'Hi' + (Q.client ? ' ' + Q.client : '') + ',';
-  var lines = [hi, '', 'Thanks for your time. Here is your cleaning quote from Brothers Cleaning Solution.', ''];
-  var inc;
-  if (Q.kind === 'office'){
-    var ty = OTYPE[Q.otype];
-    lines.push('Place: ' + ty.label + ', about ' + Number(Q.sqft).toLocaleString('en-CA') + ' sq ft, ' + plural(Q.wash, 'washroom') + (Q.kitchen ? ', kitchen/break room' : '') + (Q.area ? ' (' + Q.area + ')' : ''));
-    lines.push('Schedule: ' + r.fr.label);
-    if (recurring){
-      lines.push('Price: ' + money(you) + ' per visit' + hstTag + ' (about ' + money(month) + ' a month, billed monthly)');
-      if (r.first) lines.push('First visit, full deep clean: ' + money(yourPrice(r.first.mid)) + hstTag);
-    } else {
-      lines.push('Price: ' + money(you) + hstTag + ' for the job');
-    }
-    inc = ['Empty all garbage and recycling, new liners', 'Dust and wipe desks, ledges and surfaces', 'Disinfect door handles, light switches and other high-touch spots',
-      'Clean and disinfect washrooms: toilets, sinks, mirrors, floors', 'Refill paper towel, toilet paper and soap from your supply'];
-    if (Q.kitchen) inc.push('Kitchen/break room: counters, sink, tables, outside of appliances');
-    inc.push('Vacuum carpets and mop hard floors');
-    if (r.first || Q.ofreq === 'once') inc.push('Deep clean adds: baseboards, door frames, vents, inside microwave, wall marks');
-    lines.push('', 'Each visit includes:');
-    inc.forEach(function(t){ lines.push('- ' + t); });
-    lines.push('', 'We can clean after hours, evenings or weekends, so your team is never disturbed. No long contract: 30 days notice to stop.');
-  } else {
-    var ht = HTYPE[Q.htype], sz = HSIZE[Q.hsize];
-    lines.push('Home: ' + plural(Q.bed, 'bedroom') + ', ' + plural(Q.full, 'bathroom') + (Q.half ? ', ' + plural(Q.half, 'half bath', 'half baths') : '') + ', ' + sz.label + (Q.area ? ' (' + Q.area + ')' : ''));
-    if (recurring){
-      lines.push(r.first.label + ': ' + money(yourPrice(r.first.mid)) + hstTag);
-      lines.push('Then ' + r.fr.word + ': ' + money(you) + ' per visit' + hstTag + ' (about ' + money(month) + ' a month)');
-    } else {
-      lines.push(ht.label + ' clean: ' + money(you) + hstTag);
-    }
-    var ex = [];
-    if (Q.oven) ex.push('inside oven'); if (Q.fridge) ex.push('inside fridge');
-    if (Q.cabinets && Q.htype !== 'move') ex.push('inside cabinets');
-    if (Q.baseboards && Q.htype === 'standard') ex.push('baseboards');
-    if (Q.windows) ex.push(plural(Q.windows, 'window') + ' (inside)');
-    if (ex.length) lines.push('Extras included' + (recurring ? ' on the first visit' : '') + ': ' + ex.join(', '));
-    inc = ['Kitchen: counters, stovetop, sink, outside of appliances, microwave inside and out', 'Bathrooms: shower/tub, toilet, sink, mirrors, floors',
-      'Bedrooms and living areas: dusting, surfaces, mirrors', 'Vacuum and mop all floors, garbage taken out'];
-    if (Q.htype === 'deep') inc.push('Deep clean adds: baseboards, door frames, light switches, vents, window sills');
-    if (Q.htype === 'move') inc.push('Move-out adds: inside all cabinets, drawers, closets, fridge and oven, wall marks');
-    lines.push('', 'Included:');
-    inc.forEach(function(t){ lines.push('- ' + t); });
-    lines.push('', 'We bring all our own supplies.');
-  }
-  lines.push('', 'Reply here to book, or with any questions.', '', (ME.name ? ME.name + ', ' : '') + 'Brothers Cleaning Solution' + (ME.phone ? '\n' + ME.phone : '') + (ME.email ? '\n' + ME.email : ''));
+function fitMsgBoxes(){ $$('#result .msgbox').forEach(function(t){ if (!t.offsetParent) return; t.style.height = 'auto'; t.style.height = (t.scrollHeight + 4) + 'px'; }); }
+/* Turno messages: Turno removes phone numbers, emails, last names and business names, so these have none. */
+function rentalWord(q){ var b = +q.bed || 0; return b === 0 ? 'studio' : b + '-bedroom'; }
+function bidMessage(q){
+  q = q || Q;
+  var beds = (+q.bed || 0) > 1 ? 'beds' : 'bed';
+  var linen = q.tlaundry === 'onsite' ? 'wash and dry the sheets and towels in the unit and remake the ' + beds
+    : (q.tlaundry === 'takehome' ? 'take the sheets and towels to wash, bring them back fresh and remake the ' + beds
+    : 'make the ' + beds + ' with the clean linens you leave');
+  var baths = Math.max(1, +q.full || 0) > 1 ? 'bathrooms' : 'bathroom';
+  return ['Hi! I\'m ' + (firstName(ME.name) || 'Moe') + '. My brother and I clean rentals in Orléans and across Ottawa.', '',
+    'For your ' + rentalWord(q) + ', every turnover we ' + linen + ', clean and reset the kitchen and ' + baths + ', vacuum and mop, take out the garbage, restock your supplies, and follow your checklist exactly.', '',
+    'We bring our own cleaning supplies, and after every clean we send you before and after photos of every room, so you can see the place is guest-ready without driving over.', '',
+    'We\'re new on Turno, so we\'re keeping our price low while we earn our first reviews. Thanks for considering us!'].join('\n');
+}
+function hiredMessage(q){
+  q = q || Q;
+  var lines = ['Thanks for choosing us! A few quick questions so the first clean goes perfectly:', '',
+    '1. How do we get in: lockbox, keypad or smart lock?',
+    '2. Where do you keep the ' + (q.tlaundry === 'host' ? 'clean linens, towels' : 'spare linens, towels') + ' and supplies we should restock?',
+    '3. Do you have a checklist, or anything guests often leave messy?',
+    '4. Where can we park?'];
+  if (q.tlaundry === 'onsite') lines.push('5. Is it OK to use the washer and dryer for the sheets and towels?');
+  if (q.theavy) lines.push((q.tlaundry === 'onsite' ? '6' : '5') + '. For the first clean we\'ll do a deep reset so everything starts spotless. Does that work for you?');
+  lines.push('', 'After every clean we\'ll send before and after photos of every room. Looking forward to it!');
   return lines.join('\n');
 }
 
@@ -369,6 +454,76 @@ function buildSteps(q){
       'Pack up all your stuff. Don\'t leave cloths or bottles behind.',
       'Turn off the lights, lock all doors and windows, and turn the alarm back on.',
       'Text the client anything you noticed: low supplies, leaks, broken things.'
+    ]));
+  } else if (q.kind === 'turnover'){
+    var tl = q.tlaundry, nbed = Math.max(0, +q.bed || 0), nfull = Math.max(1, +q.full || 0), nhalf = Math.max(0, +q.half || 0);
+    out.push(S('start', 'Arrive and check the unit', [], [
+      'Check that the guests have checked out before you go in.',
+      'Open the door with the lockbox or code the host gave you. Never share the code.',
+      'Walk through every room before you touch anything. Take a photo of any damage, stains or missing items and send it to the host right away.',
+      'Bag anything the guests left behind and tell the host. Don\'t throw it out.',
+      'Put on gloves. Spray the tub, shower and toilet so the cleaner soaks while you work.'
+    ], 'Throw out opened food and drinks the guests left. Ask the host about anything unopened.'));
+    if (tl !== 'host') out.push(S('laundry', 'Strip the beds and start the laundry', [], [
+      'Strip every bed: sheets, pillowcases and duvet cover. Collect all used towels, bath mats and kitchen towels.',
+      tl === 'onsite' ? 'Start the first load right away so it\'s dry before you leave. Hot water for sheets and towels.' : 'Bag the linens and towels to take for washing. You make the beds with the fresh set you brought.',
+      'Check the mattress protector and pillows for stains. If you find any, take a photo and tell the host.'
+    ]));
+    if (q.theavy) out.push(S('deep', 'First visit only: deep reset', ['blue','green'], [
+      'Wipe the baseboards, door frames, light switches and outlet covers in every room.',
+      'Clean inside the fridge and inside the microwave and oven.',
+      'Scrub the bathroom grout and the shower tracks.'
+    ]));
+    out.push(S('kitchen', 'Kitchen', ['green'], [
+      'Switch to a green cloth. The kitchen cloth is never used anywhere else.',
+      'Run the dishwasher or wash the dishes. Put everything back where the host keeps it.',
+      'Wipe the counters, the stovetop, the table and the outside of every appliance. Wipe the handles extra well.',
+      'Microwave: run a cup of water for 2 minutes, then wipe the inside.',
+      'Open the fridge. Throw out what the guests left and wipe any spills.',
+      'Scrub and dry the sink. Take out the garbage and recycling, put in new bags.'
+    ], '', false, true));
+    for (var tb = 1; tb <= nfull; tb++){
+      out.push(S('bath' + tb, nfull > 1 ? 'Bathroom ' + tb : 'Bathroom', ['yellow','red'], [
+        'Scrub the tub or shower and the glass door. Rinse. Check the drain for hair.',
+        'Yellow cloth: sink, counter, tap, then the mirror with glass spray.',
+        'Switch to a red cloth. Wipe the outside of the toilet top to bottom, then brush inside the bowl and flush.',
+        'Hang fresh towels the way the host likes them. Put out a new toilet paper roll.',
+        'Empty the garbage and mop the floor toward the door.'
+      ], 'The red cloth is only for the toilet.', false, true));
+    }
+    for (var th = 1; th <= nhalf; th++){
+      out.push(S('half' + th, nhalf > 1 ? 'Half bath ' + th : 'Half bath', ['yellow','red'], [
+        'Yellow cloth: sink, tap, mirror and counter. Red cloth: toilet, then brush the bowl and flush.',
+        'Fresh hand towel and toilet paper. Empty the garbage and mop.'
+      ], '', false, true));
+    }
+    for (var tr = 1; tr <= Math.max(1, nbed); tr++){
+      out.push(S('bed' + tr, nbed === 0 ? 'Sleeping area' : (nbed > 1 ? 'Bedroom ' + tr : 'Bedroom'), ['blue'], [
+        'Make the bed hotel-style with fresh sheets: tight corners, pillows fluffed, duvet straight.',
+        'Dust the nightstands, dresser and window sill. Clean the mirror.',
+        'Check under the bed and in the drawers and closet for things guests left.',
+        'Vacuum the whole floor, under the bed too.'
+      ], '', false, true));
+    }
+    out.push(S('living', 'Living area', ['blue'], [
+      'Dust the tables, shelves and TV stand. Wipe the TV screen with a dry cloth only.',
+      'Vacuum the couch and under the cushions. Fluff and line up the pillows, fold the throw blanket.',
+      'Put the remotes, guidebook and Wi-Fi card back where the host keeps them.',
+      'Wipe the light switches and door handles.'
+    ], '', false, true));
+    out.push(S('restock', 'Restock and stage', [], [
+      'Restock from the host\'s storage: toilet paper, paper towel, soap, shampoo, dish soap, coffee, garbage bags.',
+      'Write down anything running low so you can tell the host.',
+      'Open the blinds the way the host likes. Set the thermostat to the host\'s setting.'
+    ]));
+    out.push(S('floors', 'Floors (always last)', [], [
+      'Vacuum every room, edges too. Mop the hard floors, from the far corner back toward the door.'
+    ]));
+    out.push(S('finish', 'Lock up and report', [], [
+      tl === 'onsite' ? 'Fold the clean laundry and put it in the host\'s linen spot.' : 'Make sure the beds and towels are all set.',
+      'Walk through one last time like a guest would. Lights off, windows closed.',
+      'Lock up and put the key back exactly the way the host asked.',
+      'Message the host: done, anything broken, anything running low. The photo report shows them every room.'
     ]));
   } else {
     var t = q.htype;
@@ -792,6 +947,7 @@ function showTab(name){
   showOnly('tab-' + name);
   $$('.tab-btn').forEach(function(b){ if (b.dataset.tab === name) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   if (name === 'jobs') renderJobsAdmin();
+  if (name === 'quote') fitMsgBoxes();
   if (name === 'team') renderTeam();
   lsSet('bc-tab', name);
   if (history.replaceState) history.replaceState(null, '', '#' + name);
@@ -918,15 +1074,18 @@ function deleteJob(id){
 var currentJobId = '', ticks = {}, STEP_KEY = '', busyShot = {}, shotMsg = {}, pendingShot = null, finishArmed = 0, jobPoll = 0;
 function jobSummary(q){
   q = q || Q;
-  var r = q.kind === 'office' ? calcOffice(q) : calcHouse(q), pills = [];
+  var r = calcFor(q), pills = [];
   if (q.client) pills.push(q.client);
-  if (q.kind === 'office'){
+  if (q.kind === 'turnover'){
+    pills.push('Turnover'); pills.push((+q.bed ? q.bed + ' bed' : 'Studio') + ' / ' + Math.max(1, +q.full || 0) + ' bath');
+    pills.push((TLAUNDRY[q.tlaundry] || TLAUNDRY.host).label);
+  } else if (q.kind === 'office'){
     pills.push((OTYPE[q.otype] || OTYPE.office).label); pills.push(Number(q.sqft).toLocaleString('en-CA') + ' sq ft'); pills.push(r.fr.label); pills.push(plural(+q.wash || 0, 'washroom'));
   } else {
     pills.push((HTYPE[q.htype] || HTYPE.standard).label + ' clean'); pills.push(q.bed + ' bed / ' + q.full + ' bath');
     if (q.htype !== 'move') pills.push(r.fr.label);
   }
-  pills.push('≈ ' + hrs(r.hours) + ' of work' + (r.visits ? ' per visit' : ''));
+  pills.push('≈ ' + hrs(r.hours) + ' of work' + (q.kind === 'turnover' ? ' per turnover' : (r.visits ? ' per visit' : '')));
   return pills;
 }
 function jobQ(j){ return Object.assign({}, DEFAULT_Q, j.q || {}, {client:j.client}); }
@@ -1393,6 +1552,17 @@ function quoteIncludes(){
     inc.push('Vacuum carpets and mop hard floors');
     var r = calc();
     if (r.first || Q.ofreq === 'once') inc.push('Deep clean' + (Q.ofreq === 'once' ? '' : ' (first visit)') + ' adds: baseboards, door frames, vents, inside the microwave and marks on walls');
+  } else if (Q.kind === 'turnover'){
+    inc = [Q.tlaundry === 'host' ? 'Beds made with the clean linens you leave, fresh towels set out' : 'Beds stripped and remade with fresh linens, fresh towels set out',
+      'Kitchen: counters, stovetop, sink, outside of appliances, microwave inside and out, dishes washed and put away',
+      'Bathrooms: shower and tub, toilet, sink, mirrors and floors',
+      'Bedrooms and living areas: dusting, surfaces and mirrors, everything put back in place for the next guest',
+      'Restock toilet paper, soap, coffee and other supplies from your storage',
+      'Vacuum and mop all floors, take out the garbage and recycling',
+      'Before and after photos of every room, and a note of any damage or items left behind'];
+    if (Q.tlaundry === 'onsite') inc.splice(1, 0, 'Sheets and towels washed and dried in the unit');
+    if (Q.tlaundry === 'takehome') inc.splice(1, 0, 'Sheets and towels washed off-site and returned fresh');
+    if (Q.theavy) inc.push('First turnover only: deep reset with baseboards, door frames, light switches and inside the fridge and oven');
   } else {
     inc = ['Kitchen: counters, stovetop, sink, outside of appliances, microwave inside and out', 'Bathrooms: shower and tub, toilet, sink, mirrors and floors',
       'Bedrooms and living areas: dusting, surfaces and mirrors', 'Vacuum and mop all floors, and take out the garbage'];
@@ -1411,13 +1581,13 @@ function houseExtras(){
 }
 
 function quoteDoc(){
-  var r = calc(), you = yourPrice(r.mid), recurring = r.visits > 0, month = recurring ? r5(you * r.visits) : 0;
-  var firstYou = r.first ? yourPrice(r.first.mid) : 0, hst = !!Q.hst, T = 1.13;
+  var pi = priceInfo(), r = pi.r, you = pi.you, recurring = pi.recurring, month = pi.month;
+  var firstYou = pi.firstYou, hst = !!Q.hst, T = 1.13, turn = r.kind === 'turnover';
   var now = new Date(), valid = new Date(now.getTime() + 30 * 864e5);
   var p2 = function(n){ return String(n).padStart(2, '0'); };
   var number = 'Q-' + String(now.getFullYear()).slice(2) + p2(now.getMonth() + 1) + p2(now.getDate()) + '-' + p2(now.getHours()) + p2(now.getMinutes());
   var longDate = function(d){ return d.toLocaleDateString('en-CA', {year:'numeric', month:'long', day:'numeric'}); };
-  var visitsTxt = recurring ? 'about ' + (Math.round(r.visits * 10) / 10) + (r.visits === 1 ? ' visit' : ' visits') + ' a month' : '';
+  var visitsTxt = recurring ? 'about ' + (Math.round(r.visits * 10) / 10) + (turn ? (r.visits === 1 ? ' turnover' : ' turnovers') : (r.visits === 1 ? ' visit' : ' visits')) + ' a month' : '';
   var rows = [], place, schedule, note, title;
   function row(desc, sub, when, amount, unit){ rows.push({desc:desc, sub:sub || '', when:when, price:cad(amount) + (unit || ''), priceHst:cad(amount * T) + (unit || '')}); }
   if (Q.kind === 'office'){
@@ -1432,6 +1602,14 @@ function quoteDoc(){
       row('One-time deep clean', 'Everything listed under "What\'s included"', 'Once', you, '');
     }
     note = 'We can clean after hours, in the evening or on weekends, so your team is never disturbed.';
+  } else if (turn){
+    var la = TLAUNDRY[Q.tlaundry] || TLAUNDRY.host, tsz = HSIZE[Q.hsize] || HSIZE.s0;
+    title = 'Rental turnover cleaning';
+    place = 'Rental unit: ' + (+Q.bed ? plural(+Q.bed, 'bedroom') : 'studio') + ', ' + plural(Math.max(1, +Q.full || 0), 'bathroom') + (Q.half ? ', ' + plural(+Q.half, 'half bath', 'half baths') : '') + ', ' + tsz.label;
+    schedule = 'After each guest check-out (' + visitsTxt + ')';
+    row('Turnover clean', 'Everything listed under "What\'s included". ' + la.short.charAt(0).toUpperCase() + la.short.slice(1) + (Q.trush ? '. Booked less than 24 hours ahead' : ''), 'Each check-out', you, ' / turnover');
+    if (r.first) row('First turnover: deep reset', 'One time, so everything starts spotless', 'Once', firstYou, '');
+    note = 'After every clean we send before and after photos of every room. We bring all our own cleaning supplies.';
   } else {
     var ht = HTYPE[Q.htype] || HTYPE.standard, sz = HSIZE[Q.hsize] || HSIZE.s1, ex = houseExtras();
     title = 'Home cleaning';
@@ -1448,7 +1626,7 @@ function quoteDoc(){
   }
   var totals = [];
   if (recurring){
-    totals.push({label:'Estimated monthly cost', sub:visitsTxt + (r.first ? ', first visit not included' : ''), value:cad(month)});
+    totals.push({label:'Estimated monthly cost', sub:visitsTxt + (r.first ? (turn ? ', first deep reset not included' : ', first visit not included') : ''), value:cad(month)});
     if (hst){ totals.push({label:'HST (13%)', value:cad(month * 0.13)}); totals.push({label:'Monthly total with HST', value:cad(month * T), strong:true}); }
     else totals[0].strong = true;
   } else {
@@ -1493,7 +1671,7 @@ function makeQuotePDF(d){
   fill(YEL); doc.roundedRect(M, 28, 44, 44, 7, 7, 'F');
   font('bold', 18); color(NAVY); doc.text('BC', M + 22, 56, {align:'center'});
   font('bold', 17); doc.setTextColor(255, 255, 255); doc.text('Brothers Cleaning Solution', M + 58, 46);
-  font('normal', 9.5); doc.setTextColor(198, 209, 218); doc.text('Office, clinic and home cleaning · Ottawa & Orléans', M + 58, 62);
+  font('normal', 9.5); doc.setTextColor(198, 209, 218); doc.text('Office, clinic, home and rental cleaning · Ottawa & Orléans', M + 58, 62);
   font('bold', 26); color(YEL); doc.text('QUOTE', W - M, 48, {align:'right'});
   font('normal', 9); doc.setTextColor(255, 255, 255);
   doc.text('No. ' + d.number, W - M, 64, {align:'right'});
@@ -1659,7 +1837,7 @@ function makeQuoteDOCX(d){
     width:{size:CW, type:D.WidthType.DXA}, columnWidths:[CW], borders:noBorders,
     rows:[new D.TableRow({cantSplit:true, children:[cell([
       hp([run(' BC ', {bold:true, size:15, color:NAVY, shade:YEL}), run('  Brothers Cleaning Solution', {bold:true, size:16, color:'FFFFFF'})], [run('QUOTE', {bold:true, size:24, color:YEL})], {after:20}),
-      hp([run('Office, clinic and home cleaning · Ottawa & Orléans', {size:9, color:'C6D1DA'})], [run('No. ' + d.number, {size:9, color:'FFFFFF'})]),
+      hp([run('Office, clinic, home and rental cleaning · Ottawa & Orléans', {size:9, color:'C6D1DA'})], [run('No. ' + d.number, {size:9, color:'FFFFFF'})]),
       hp([], [run('Date: ' + d.date, {size:9, color:'FFFFFF'})]),
       hp([], [run('Valid until: ' + d.valid, {size:9, color:'FFFFFF'})])
     ], CW, {fill:NAVY, pad:260})]})]
@@ -1773,7 +1951,7 @@ function makeQuoteDOCX(d){
 /* buttons */
 function quoteFile(kind){
   var msg = $('#quoteMsg'), btn = $(kind === 'pdf' ? '#pdfQuote' : '#docxQuote');
-  if (!(Q.client || '').trim()){ msg.style.color = 'var(--bad)'; msg.textContent = 'Type the client name first, so it shows on the quote.'; $('#client').focus(); return; }
+  if (!(Q.client || '').trim()){ msg.style.color = 'var(--bad)'; msg.textContent = 'Type the client\'s name in step 4 first, so it shows on the quote.'; $('#client').focus(); $('#client').scrollIntoView({block:'center'}); return; }
   msg.style.color = 'var(--muted)'; msg.textContent = kind === 'pdf' ? 'Making the PDF…' : 'Making the Word file…';
   busy(btn, true, 'One sec…');
   var libs = kind === 'pdf' ? loadScript('vendor/jspdf.umd.min.js').then(function(){ return loadScript('vendor/jspdf.plugin.autotable.min.js'); }) : loadScript('vendor/docx.umd.js');
@@ -2183,18 +2361,22 @@ function renderQuoteFor(){
 function quoteForLead(l){
   Q.client = cleanName(l.name); Q.area = l.area || ''; Q.leadId = l.id;
   Q.contact = l.contact || ''; Q.cemail = l.email || ''; Q.addr = String(l.notes || '').split('\n')[0].split('. ')[0].replace(/\.$/, '');
-  if (l.type === 'rental'){ Q.kind = 'house'; Q.htype = 'move'; }
-  else if (l.type === 'house') Q.kind = 'house';
-  else { Q.kind = 'office'; if (OTYPE[l.type]) Q.otype = l.type; }
+  if (l.type === 'rental') Q.svc = 'move';
+  else if (l.type === 'house') Q.svc = 'home';
+  else { Q.svc = 'office'; if (OTYPE[l.type]) Q.otype = l.type; }
+  applySvc(Q);
   lsSet('bc-quote', Q); fillForm(); syncVisibility(); renderResult(); renderQuoteFor(); stepsDirty = true;
   showTab('quote');
 }
 function saveQuoteAsLead(){
   if (readOnly){ $('#quoteMsg').textContent = 'You can\'t change leads with view-only access.'; return; }
-  var r = calc(), you = yourPrice(r.mid), monthly = r.visits > 0 ? r5(you * r.visits) : 0;
-  var summary = (Q.kind === 'office'
-      ? OTYPE[Q.otype].label + ', ' + Number(Q.sqft).toLocaleString('en-CA') + ' sq ft, ' + r.fr.label.toLowerCase() + '. Quoted ' + money(you) + (r.visits ? '/visit' : '') + (r.first ? ', first visit ' + money(yourPrice(r.first.mid)) : '') + '.'
-      : HTYPE[Q.htype].label + ' clean, ' + Q.bed + ' bed / ' + Q.full + ' bath. Quoted ' + money(you) + (r.visits ? '/visit ' + r.fr.word : '') + (r.first ? ', first visit ' + money(yourPrice(r.first.mid)) : '') + '.');
+  var pi = priceInfo(), r = pi.r, you = pi.you, monthly = pi.month;
+  var lvTxt = ' (' + LEVELS[pi.level].label.toLowerCase() + ')';
+  var summary = (r.kind === 'turnover'
+      ? 'Turnover, ' + (+Q.bed ? Q.bed + ' bed' : 'studio') + ' / ' + Math.max(1, +Q.full || 0) + ' bath, ' + (TLAUNDRY[Q.tlaundry] || TLAUNDRY.host).label.toLowerCase() + ', about ' + plural(r.visits, 'turnover') + ' a month. Quoted ' + money(you) + '/turnover' + lvTxt + (r.first ? ', first deep reset ' + money(pi.firstYou) : '') + '.'
+      : r.kind === 'office'
+      ? OTYPE[Q.otype].label + ', ' + Number(Q.sqft).toLocaleString('en-CA') + ' sq ft, ' + r.fr.label.toLowerCase() + '. Quoted ' + money(you) + (r.visits ? '/visit' : '') + lvTxt + (r.first ? ', first visit ' + money(pi.firstYou) : '') + '.'
+      : HTYPE[Q.htype].label + ' clean, ' + Q.bed + ' bed / ' + Q.full + ' bath. Quoted ' + money(you) + (r.visits ? '/visit ' + r.fr.word : '') + lvTxt + (r.first ? ', first visit ' + money(pi.firstYou) : '') + '.');
   var followDate = addBizDays(todayISO(), 3);
   var l = linkedLead();
   if (l){
@@ -2203,8 +2385,8 @@ function saveQuoteAsLead(){
     return;
   }
   var lead = {
-    name: Q.client || (Q.kind === 'office' ? OTYPE[Q.otype].label + ' quote' : 'House quote'),
-    type: Q.kind === 'office' ? Q.otype : 'house', contact:'', reach:'', email:'', area: Q.area, status:'quoted',
+    name: Q.client || (Q.kind === 'office' ? OTYPE[Q.otype].label + ' quote' : (Q.kind === 'turnover' ? 'Airbnb turnover quote' : 'House quote')),
+    type: Q.kind === 'office' ? Q.otype : (Q.kind === 'turnover' ? 'rental' : 'house'), contact: Q.contact || '', reach:'', email: Q.cemail || '', area: Q.area, status:'quoted',
     next:'Follow up on the quote', nextDate: followDate, value: monthly, notes: '', touches: [{d: todayISO(), t:'note', n:'Quote: ' + summary}]
   };
   addLead(lead).then(function(){ var m = $('#quoteMsg'); if (m) m.textContent = 'Saved to Leads with a follow-up on ' + fmtDate(followDate) + '.'; }, function(){});
@@ -2257,10 +2439,9 @@ function renderSetup(){
 }
 
 
-$$('.seg-btn').forEach(function(b){ b.addEventListener('click', function(){ Q.kind = b.dataset.kind; syncVisibility(); lsSet('bc-quote', Q); renderResult(); stepsDirty = true; }); });
 var qCard = $('#tab-quote');
-qCard.addEventListener('input', function(e){ if (e.target.closest('.card') && e.target.id !== 'quoteText') onQuoteChange(); });
-qCard.addEventListener('change', function(e){ if (e.target.closest('.card') && e.target.id !== 'quoteText') onQuoteChange(); });
+qCard.addEventListener('input', function(e){ if (e.target.closest('.card') && !e.target.closest('#result')) onQuoteChange(); });
+qCard.addEventListener('change', function(e){ if (e.target.closest('.card') && !e.target.closest('#result')) onQuoteChange(); });
 $$('.step').forEach(function(b){
   b.addEventListener('click', function(){
     var inp = $('#' + b.dataset.step), v = (parseInt(inp.value, 10) || 0) + (+b.dataset.d);

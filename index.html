@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202610100203">
+<link rel="stylesheet" href="styles.css?v=202610162300">
 </head>
 <body>
 
@@ -143,40 +143,50 @@
   <!-- ADMIN: QUOTE -->
   <section id="tab-quote" class="tab" aria-labelledby="h-quote" hidden>
     <div class="sec-head">
-      <h1 id="h-quote">Quote a job</h1>
-      <p class="lede">Fill in what you see at the walkthrough. You get the Ottawa going rate and your starter price under it.</p>
+      <h1 id="h-quote">New quote</h1>
+      <p class="lede">Pick the job, fill in what you see, and get a price you can send to a client or bid on Turno.</p>
       <div class="alert good" id="quoteFor" hidden></div>
     </div>
 
-    <div class="seg" role="group" aria-label="Kind of job">
-      <button type="button" class="seg-btn" id="k-office" data-kind="office" aria-pressed="true">Office / commercial</button>
-      <button type="button" class="seg-btn" id="k-house" data-kind="house" aria-pressed="false">House / condo</button>
+    <!-- 1. kind of job -->
+    <div class="card qstep">
+      <div class="qstep-head"><span class="qnum" aria-hidden="true">1</span><h2>What kind of job?</h2></div>
+      <div class="svc-grid" role="radiogroup" aria-label="Kind of job">
+        <label class="svc"><input type="radio" name="svc" value="office"><span class="svc-in">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M11 21v-3h2v3"/></svg>
+          <b>Office / commercial</b><small>Offices, clinics, stores, gyms, daycares</small></span></label>
+        <label class="svc"><input type="radio" name="svc" value="home"><span class="svc-in">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>
+          <b>Home cleaning</b><small>Regular or deep clean of a house or condo</small></span></label>
+        <label class="svc"><input type="radio" name="svc" value="move"><span class="svc-in">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l2 2M15 8l2 2"/></svg>
+          <b>Move in / move out</b><small>Empty home, cleaned inside everything</small></span></label>
+        <label class="svc"><input type="radio" name="svc" value="turnover"><span class="svc-in">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="11" r="2"/></svg>
+          <b>Airbnb turnover</b><small>Clean and reset between guests</small></span></label>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="row2">
-        <label class="field"><span>Client or business name</span><input id="client" type="text" autocomplete="off" placeholder="e.g. Innes Road Dental"></label>
-        <label class="field"><span>Area</span><input id="area" type="text" autocomplete="off" placeholder="e.g. Orléans"></label>
-        <label class="field"><span>Contact person <small class="hint">on the quote</small></span><input id="q-contact" type="text" autocomplete="off" placeholder="e.g. Dr. Sarah Lee"></label>
-        <label class="field"><span>Client address <small class="hint">on the quote</small></span><input id="q-addr" type="text" autocomplete="off" placeholder="Street, city"></label>
-        <label class="field"><span>Client email <small class="hint">optional</small></span><input id="q-email" type="text" inputmode="email" autocomplete="off"></label>
-      </div>
+    <!-- 2. the place -->
+    <div class="card qstep">
+      <div class="qstep-head"><span class="qnum" aria-hidden="true">2</span><h2 id="placeTitle">About the place</h2></div>
 
-      <!-- office -->
-      <div id="office-fields" class="card-body" style="display:flex;flex-direction:column;gap:14px">
-        <label class="field"><span>Type of place</span>
-          <select id="otype">
-            <option value="office">Office</option>
-            <option value="medical">Medical or dental clinic</option>
-            <option value="retail">Store / retail</option>
-            <option value="daycare">Daycare or school</option>
-            <option value="gym">Gym or studio</option>
-          </select>
-        </label>
-        <label class="field"><span>Size in square feet</span>
-          <input id="sqft" type="number" inputmode="numeric" min="100" step="50">
-          <small class="hint">Not sure? Ask the office manager (it's on their lease). Rough guess: number of staff × 175.</small>
-        </label>
+      <div id="office-fields" class="qgroup">
+        <div class="row2">
+          <label class="field"><span>Type of place</span>
+            <select id="otype">
+              <option value="office">Office</option>
+              <option value="medical">Medical or dental clinic</option>
+              <option value="retail">Store / retail</option>
+              <option value="daycare">Daycare or school</option>
+              <option value="gym">Gym or studio</option>
+            </select>
+          </label>
+          <label class="field"><span>Size in square feet</span>
+            <input id="sqft" type="number" inputmode="numeric" min="100" step="50">
+          </label>
+        </div>
+        <small class="hint">Not sure of the size? Ask the office manager (it's on their lease). Rough guess: number of staff × 175.</small>
         <div class="counts">
           <div class="field"><span class="label" id="lbl-wash">Washrooms inside the unit</span>
             <div class="stepper"><button type="button" class="step" data-step="wash" data-d="-1" aria-label="Fewer washrooms">−</button><input id="wash" type="number" inputmode="numeric" min="0" max="30" aria-labelledby="lbl-wash"><button type="button" class="step" data-step="wash" data-d="1" aria-label="More washrooms">+</button></div>
@@ -185,23 +195,23 @@
         <label class="check"><input type="checkbox" id="kitchen"><span>Kitchen or break room</span></label>
         <div class="field"><span class="label">How often</span>
           <div class="chips" role="radiogroup" aria-label="How often">
-            <label class="chip"><input type="radio" name="ofreq" id="of-once" value="once"><span>One time</span></label>
-            <label class="chip"><input type="radio" name="ofreq" id="of-monthly" value="monthly"><span>Monthly</span></label>
-            <label class="chip"><input type="radio" name="ofreq" id="of-biweekly" value="biweekly"><span>Every 2 weeks</span></label>
-            <label class="chip"><input type="radio" name="ofreq" id="of-weekly" value="weekly"><span>Weekly</span></label>
-            <label class="chip"><input type="radio" name="ofreq" id="of-x2" value="x2"><span>2× a week</span></label>
-            <label class="chip"><input type="radio" name="ofreq" id="of-x3" value="x3"><span>3× a week</span></label>
-            <label class="chip"><input type="radio" name="ofreq" id="of-x5" value="x5"><span>5× a week</span></label>
+            <label class="chip"><input type="radio" name="ofreq" value="once"><span>One time</span></label>
+            <label class="chip"><input type="radio" name="ofreq" value="monthly"><span>Monthly</span></label>
+            <label class="chip"><input type="radio" name="ofreq" value="biweekly"><span>Every 2 weeks</span></label>
+            <label class="chip"><input type="radio" name="ofreq" value="weekly"><span>Weekly</span></label>
+            <label class="chip"><input type="radio" name="ofreq" value="x2"><span>2× a week</span></label>
+            <label class="chip"><input type="radio" name="ofreq" value="x3"><span>3× a week</span></label>
+            <label class="chip"><input type="radio" name="ofreq" value="x5"><span>5× a week</span></label>
           </div>
         </div>
-        <label class="check" id="firstDeep-wrap"><input type="checkbox" id="firstDeep"><span>Deep clean on the first visit <small>— recommended. Offices that switch cleaners usually have buildup.</small></span></label>
+        <label class="check" id="firstDeep-wrap"><input type="checkbox" id="firstDeep"><span>Deep clean on the first visit <small>Recommended: offices that switch cleaners usually have buildup.</small></span></label>
       </div>
 
-      <!-- house -->
-      <div id="house-fields" hidden style="display:flex;flex-direction:column;gap:14px">
+      <div id="rooms-fields" class="qgroup">
         <div class="counts">
           <div class="field"><span class="label" id="lbl-bed">Bedrooms</span>
             <div class="stepper"><button type="button" class="step" data-step="bed" data-d="-1" aria-label="Fewer bedrooms">−</button><input id="bed" type="number" inputmode="numeric" min="0" max="10" aria-labelledby="lbl-bed"><button type="button" class="step" data-step="bed" data-d="1" aria-label="More bedrooms">+</button></div>
+            <small class="hint" id="bedHint"></small>
           </div>
           <div class="field"><span class="label" id="lbl-full">Full bathrooms</span>
             <div class="stepper"><button type="button" class="step" data-step="full" data-d="-1" aria-label="Fewer full bathrooms">−</button><input id="full" type="number" inputmode="numeric" min="0" max="10" aria-labelledby="lbl-full"><button type="button" class="step" data-step="full" data-d="1" aria-label="More full bathrooms">+</button></div>
@@ -210,7 +220,7 @@
             <div class="stepper"><button type="button" class="step" data-step="half" data-d="-1" aria-label="Fewer half baths">−</button><input id="half" type="number" inputmode="numeric" min="0" max="6" aria-labelledby="lbl-half"><button type="button" class="step" data-step="half" data-d="1" aria-label="More half baths">+</button></div>
           </div>
         </div>
-        <label class="field"><span>Home size</span>
+        <label class="field"><span>Size</span>
           <select id="hsize">
             <option value="s0">Under 1,000 sq ft (condo / apartment)</option>
             <option value="s1">1,000 – 1,999 sq ft</option>
@@ -218,32 +228,63 @@
             <option value="s3">3,000 sq ft or more</option>
           </select>
         </label>
+      </div>
+
+      <div id="home-fields" class="qgroup">
         <div class="field"><span class="label">Kind of clean</span>
           <div class="chips" role="radiogroup" aria-label="Kind of clean">
-            <label class="chip"><input type="radio" name="htype" id="ht-standard" value="standard"><span>Standard</span></label>
-            <label class="chip"><input type="radio" name="htype" id="ht-deep" value="deep"><span>Deep clean</span></label>
-            <label class="chip"><input type="radio" name="htype" id="ht-move" value="move"><span>Move in / move out</span></label>
+            <label class="chip"><input type="radio" name="hclean" value="standard"><span>Standard</span></label>
+            <label class="chip"><input type="radio" name="hclean" value="deep"><span>Deep clean</span></label>
           </div>
+          <small class="hint">Deep adds baseboards, door frames, light switches, vents and window sills.</small>
         </div>
         <div class="field"><span class="label">How often</span>
           <div class="chips" role="radiogroup" aria-label="How often">
-            <label class="chip"><input type="radio" name="hfreq" id="hf-once" value="once"><span>One time</span></label>
-            <label class="chip"><input type="radio" name="hfreq" id="hf-monthly" value="monthly"><span>Monthly</span></label>
-            <label class="chip"><input type="radio" name="hfreq" id="hf-biweekly" value="biweekly"><span>Every 2 weeks</span></label>
-            <label class="chip"><input type="radio" name="hfreq" id="hf-weekly" value="weekly"><span>Weekly</span></label>
+            <label class="chip"><input type="radio" name="hfreq" value="once"><span>One time</span></label>
+            <label class="chip"><input type="radio" name="hfreq" value="monthly"><span>Monthly</span></label>
+            <label class="chip"><input type="radio" name="hfreq" value="biweekly"><span>Every 2 weeks</span></label>
+            <label class="chip"><input type="radio" name="hfreq" value="weekly"><span>Weekly</span></label>
+          </div>
+        </div>
+        <div class="field"><span class="label">Add-ons</span>
+          <div class="row2 tight">
+            <label class="check"><input type="checkbox" id="oven"><span>Inside oven <small>+$35</small></span></label>
+            <label class="check"><input type="checkbox" id="fridge"><span>Inside fridge <small>+$35</small></span></label>
+            <label class="check"><input type="checkbox" id="cabinets"><span>Inside cabinets <small>+$40</small></span></label>
+            <label class="check" id="baseboards-wrap"><input type="checkbox" id="baseboards"><span>Baseboards <small>+$30</small></span></label>
+          </div>
+        </div>
+      </div>
+
+      <p class="qnote" id="move-note">A move-out clean already includes the inside of the fridge, oven, every cabinet, drawer and closet, and marks on walls.</p>
+
+      <div id="turn-fields" class="qgroup">
+        <div class="field"><span class="label">Sheets and towels</span>
+          <div class="chips" role="radiogroup" aria-label="Sheets and towels">
+            <label class="chip"><input type="radio" name="tlaundry" value="host"><span>Host leaves clean linens</span></label>
+            <label class="chip"><input type="radio" name="tlaundry" value="onsite"><span>Washer &amp; dryer in the unit <small>+$15</small></span></label>
+            <label class="chip"><input type="radio" name="tlaundry" value="takehome"><span>We take laundry home <small>+$35</small></span></label>
+          </div>
+          <small class="hint">On Turno this is the "Laundry" line. "You need to wash and dry" means one of the last two: ask the host which.</small>
+        </div>
+        <div class="counts">
+          <div class="field"><span class="label" id="lbl-tmonth">Turnovers per month</span>
+            <div class="stepper"><button type="button" class="step" data-step="tmonth" data-d="-1" aria-label="Fewer turnovers">−</button><input id="tmonth" type="number" inputmode="numeric" min="1" max="31" aria-labelledby="lbl-tmonth"><button type="button" class="step" data-step="tmonth" data-d="1" aria-label="More turnovers">+</button></div>
+            <small class="hint">On Turno: "projects per month".</small>
           </div>
         </div>
         <div class="field"><span class="label">Extras</span>
-          <div class="row2" style="gap:0 16px">
-            <label class="check"><input type="checkbox" id="oven"><span>Inside oven <small>+$35</small></span></label>
-            <label class="check"><input type="checkbox" id="fridge"><span>Inside fridge <small>+$35</small></span></label>
-            <label class="check" id="cabinets-wrap"><input type="checkbox" id="cabinets"><span>Inside cabinets <small>+$40</small></span></label>
-            <label class="check" id="baseboards-wrap"><input type="checkbox" id="baseboards"><span>Baseboards <small>+$30</small></span></label>
-            <label class="check"><input type="checkbox" id="basement"><span>Finished basement <small>+$40</small></span></label>
-            <label class="check"><input type="checkbox" id="pets"><span>Pets in the home <small>+$15</small></span></label>
-          </div>
+          <label class="check"><input type="checkbox" id="theavy"><span>First clean is a deep reset <small>+$50, first turnover only</small></span></label>
+          <label class="check"><input type="checkbox" id="trush"><span>Booked last minute (under 24 hours) <small>+20%</small></span></label>
         </div>
-        <div class="counts">
+      </div>
+
+      <div id="extras-fields" class="qgroup">
+        <div class="row2 tight">
+          <label class="check" id="basement-wrap"><input type="checkbox" id="basement"><span>Finished basement <small>+$40</small></span></label>
+          <label class="check"><input type="checkbox" id="pets"><span>Pets in the home <small>+$15</small></span></label>
+        </div>
+        <div class="counts" id="winstairs">
           <div class="field"><span class="label" id="lbl-windows">Inside windows <small class="hint">$6 each</small></span>
             <div class="stepper"><button type="button" class="step" data-step="windows" data-d="-1" aria-label="Fewer windows">−</button><input id="windows" type="number" inputmode="numeric" min="0" max="60" aria-labelledby="lbl-windows"><button type="button" class="step" data-step="windows" data-d="1" aria-label="More windows">+</button></div>
           </div>
@@ -252,18 +293,31 @@
           </div>
         </div>
       </div>
+      <p class="qnote" id="turn-note">Restocking the host's supplies (toilet paper, soap, coffee) is part of every turnover.</p>
+    </div>
 
-      <div class="field" style="border-top:1px solid var(--line);padding-top:14px"><span class="label">Starter discount under the going rate</span>
-        <div class="chips" role="radiogroup" aria-label="Starter discount">
-          <label class="chip"><input type="radio" name="disc" id="d-0" value="0"><span>0%</span></label>
-          <label class="chip"><input type="radio" name="disc" id="d-5" value="5"><span>5%</span></label>
-          <label class="chip"><input type="radio" name="disc" id="d-10" value="10"><span>10%</span></label>
-          <label class="chip"><input type="radio" name="disc" id="d-15" value="15"><span>15%</span></label>
-          <label class="chip"><input type="radio" name="disc" id="d-20" value="20"><span>20%</span></label>
-        </div>
-        <small class="hint">10% under is enough to win against bigger companies. Going lower usually means working for less than a cleaner's wage.</small>
+    <!-- 3. price level -->
+    <div class="card qstep">
+      <div class="qstep-head"><span class="qnum" aria-hidden="true">3</span><h2>Your price level</h2></div>
+      <div class="lvl-grid" role="radiogroup" aria-label="Price level">
+        <label class="lvl"><input type="radio" name="level" value="intro"><span class="lvl-in"><b>Intro price</b><span class="lvl-price" id="lp-intro"></span><small id="lvl-intro-sub">Lowest. Use it to win your first clients.</small></span></label>
+        <label class="lvl"><input type="radio" name="level" value="below"><span class="lvl-in"><b>Below average</b><span class="lvl-price" id="lp-below"></span><small>After your first 5 or so good reviews.</small></span></label>
+        <label class="lvl"><input type="radio" name="level" value="market"><span class="lvl-in"><b>Market price</b><span class="lvl-price" id="lp-market"></span><small>Once you have 15 or more good reviews.</small></span></label>
       </div>
-      <label class="check"><input type="checkbox" id="hst"><span>Add 13% HST <small>— only once you're registered for HST</small></span></label>
+      <label class="check"><input type="checkbox" id="hst"><span>Add 13% HST <small>Only once you're registered for HST (over $30,000 a year in sales).</small></span></label>
+    </div>
+
+    <!-- 4. client -->
+    <div class="card qstep">
+      <div class="qstep-head"><span class="qnum" aria-hidden="true">4</span><h2>Client details <small class="hint">optional</small></h2></div>
+      <p class="hint" id="clientHint">Shown on the PDF quote and saved with the lead.</p>
+      <div class="row2">
+        <label class="field"><span id="clientLbl">Client or business name</span><input id="client" type="text" autocomplete="off" placeholder="e.g. Innes Road Dental"></label>
+        <label class="field"><span>Area</span><input id="area" type="text" autocomplete="off" placeholder="e.g. Orléans"></label>
+        <label class="field"><span>Contact person</span><input id="q-contact" type="text" autocomplete="off" placeholder="e.g. Dr. Sarah Lee"></label>
+        <label class="field"><span>Client address</span><input id="q-addr" type="text" autocomplete="off" placeholder="Street, city"></label>
+        <label class="field"><span>Client email</span><input id="q-email" type="text" inputmode="email" autocomplete="off"></label>
+      </div>
     </div>
 
     <div class="card result" id="result" aria-live="polite"></div>
@@ -272,11 +326,12 @@
       <details class="more">
         <summary>Where these prices come from</summary>
         <ul>
+          <li>Airbnb turnovers in Ottawa: studios about $70–$110, 1-bedrooms $80–$140, 2-bedrooms $110–$180, 3-bedroom houses $150–$260, 4-bedrooms $220–$380. Linen service adds $15–$40 and last-minute bookings 15–25% (<a href="https://geniethecleaner.ca/ottawa-airbnb-cleaning-cost-2026-guid/" target="_blank" rel="noopener">Genie 2026 Ottawa guide</a>, <a href="https://www.cleanfixpro.ca/rental-cleaning-ottawa/" target="_blank" rel="noopener">CleanFix Pro</a>, <a href="https://ottawa-cleaners.ca/airbnb-cleaning-ottawa/" target="_blank" rel="noopener">Ottawa Cleaners</a>, checked Oct 2026). The intro price sits just under the cheapest of these.</li>
           <li>Small Ottawa offices usually pay about $0.15–$0.25 per sq ft per visit, so roughly $100–$250 for 1,000 sq ft (<a href="https://hellamaid.ca/?p=58806" target="_blank" rel="noopener">Hellamaid, Ottawa office rates</a>).</li>
-          <li>Across Canada, recurring office cleaning runs $0.10–$0.25 per sq ft per visit, or $30–$60 an hour per cleaner. Bigger offices pay less per sq ft (<a href="https://www.homestars.com/cleaning/price-guides/commercial-office-cleaning-cost" target="_blank" rel="noopener">HomeStars 2026</a>). The app lowers the rate as size goes up, and lowers it per visit for offices cleaned several times a week.</li>
+          <li>Across Canada, recurring office cleaning runs $0.10–$0.25 per sq ft per visit, or $30–$60 an hour per cleaner. Bigger offices pay less per sq ft (<a href="https://www.homestars.com/cleaning/price-guides/commercial-office-cleaning-cost" target="_blank" rel="noopener">HomeStars 2026</a>). The app lowers the rate as size goes up, and per visit for offices cleaned several times a week.</li>
           <li>A standard 3-hour house clean in Ottawa is about $135–$180 (<a href="https://hellamaid.ca/?p=60702" target="_blank" rel="noopener">Hellamaid, Ottawa house rates</a>). Deep cleans run about $270–$410 and move-outs $260–$450 in Canada (<a href="https://homestars.com/cost-guides/house-apartment-cleaning-cost/" target="_blank" rel="noopener">HomeStars</a>).</li>
           <li>Recurring house discounts of 10% monthly, 15% every 2 weeks and 20% weekly match what big Ottawa companies advertise.</li>
-          <li>Work time uses about 2,200 sq ft an hour for routine office cleaning. New teams are often slower at first, so time yourselves on the first few jobs.</li>
+          <li>Every price is kept at $35 or more per work hour, so you still cover gas, supplies and your time. New teams are often slower at first, so time yourselves on the first few jobs.</li>
         </ul>
       </details>
     </div>
@@ -472,8 +527,8 @@
   </div>
 </nav>
 
-<script src="config.js?v=202610160300"></script>
+<script src="config.js?v=202610162300"></script>
 <script src="vendor/supabase.js"></script>
-<script src="app.js?v=202610160300"></script>
+<script src="app.js?v=202610162300"></script>
 </body>
 </html>
